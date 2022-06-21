@@ -25,8 +25,6 @@ pub fn instantiate(
         role: msg.role,
         channel_ids: Vec::new(),
         current_tx_id: 0
-        // votes_count: 0,
-        // variables: HashMap::new(),
     };
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     STATE.save(deps.storage, &state)?;
@@ -34,7 +32,6 @@ pub fn instantiate(
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("owner", info.sender))
-    // .add_attribute("count", msg.count.to_string()))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -67,51 +64,8 @@ pub fn execute(
     let timeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
     broadcast_response(timeout, channel_ids, packet, "broadcast_propose".to_string())
 
-    // let msg0 = IbcMsg::SendPacket {
-    //     channel_id: channel_ids[0].clone(),
-    //     data: to_binary(&packet)?,
-    //     timeout: env.block.time.plus_seconds(PACKET_LIFETIME).into(),
-    // };
-    // let msg1 = IbcMsg::SendPacket {
-    //     channel_id: channel_ids[1].clone(),
-    //     data: to_binary(&packet)?,
-    //     timeout: env.block.time.plus_seconds(PACKET_LIFETIME).into(),
-    // };
-
-    // let res = Response::new()
-    //     .add_message(msg0)
-    //     .add_message(msg1)
-    //     .add_attribute("action", "broadcast_propose");
-    // Ok(res)
-
-    // match msg {
-    //     ExecuteMsg::Set { key, value } => try_set(deps, key, value),
-    //     ExecuteMsg::Get { key } => try_get(deps, key),
-    // }
 }
 
-
-
-
-// pub fn try_increment(deps: DepsMut) -> Result<Response, ContractError> {
-//     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-//         state.count += 1;
-//         Ok(state)
-//     })?;
-
-//     Ok(Response::new().add_attribute("method", "try_increment"))
-// }
-
-// pub fn try_reset(deps: DepsMut, info: MessageInfo, count: i32) -> Result<Response, ContractError> {
-//     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-//         if info.sender != state.owner {
-//             return Err(ContractError::Unauthorized {});
-//         }
-//         state.count = count;
-//         Ok(state)
-//     })?;
-//     Ok(Response::new().add_attribute("method", "reset"))
-// }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -155,13 +109,6 @@ mod tests {
     fn proper_initialization() {
         let deps = instantiate_then_get_deps();
 
-        // let msg = InstantiateMsg { role: "leader".to_string() };
-        // let info = mock_info("creator_V", &coins(100, "BTC"));
-
-        // // we can just call .unwrap() to assert this was a success
-        // let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-        // assert_eq!(0, res.messages.len());
-
         // query the state and verify if successful
         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap();
         let value: State = from_binary(&res).unwrap();
@@ -195,46 +142,21 @@ mod tests {
         // let value: String = from_binary(&res).unwrap();
         // assert_eq!("value_of_TestKey", value);
 
-        // // should increase counter by 1
+        // should increase counter by 1
         // let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
         // let value: CountResponse = from_binary(&res).unwrap();
         // assert_eq!(18, value.count);
+
     }
 
     fn instantiate_then_get_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies();
         let msg = InstantiateMsg { role: "leader".to_string() };
         let info = mock_info("creator_V", &coins(100, "BTC"));
+        // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
         deps
     }
 
-//     #[test]
-//     fn reset() {
-//         let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-
-//         let msg = InstantiateMsg { role: todo!(), channel_ids: todo!() };
-//         let info = mock_info("creator", &coins(2, "token"));
-//         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-//         // beneficiary can release it
-//         let unauth_info = mock_info("anyone", &coins(2, "token"));
-//         let msg = ExecuteMsg::Reset { count: 5 };
-//         let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-//         match res {
-//             Err(ContractError::Unauthorized {}) => {}
-//             _ => panic!("Must return unauthorized error"),
-//         }
-
-//         // only the original creator can reset the counter
-//         let auth_info = mock_info("creator", &coins(2, "token"));
-//         let msg = ExecuteMsg::Reset { count: 5 };
-//         let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
-
-//         // should now be 5
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(5, value.count);
-//     }
 }
