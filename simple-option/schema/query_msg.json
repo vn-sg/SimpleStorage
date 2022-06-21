@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "oneOf": [
+    {
+      "description": "GetValue querys value for given key, GetState returns the current state, GetTx returns tx with tx_id",
+      "type": "object",
+      "required": [
+        "get_value"
+      ],
+      "properties": {
+        "get_value": {
+          "type": "object",
+          "required": [
+            "key"
+          ],
+          "properties": {
+            "key": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_state"
+      ],
+      "properties": {
+        "get_state": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_tx"
+      ],
+      "properties": {
+        "get_tx": {
+          "type": "object",
+          "required": [
+            "tx_id"
+          ],
+          "properties": {
+            "tx_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
