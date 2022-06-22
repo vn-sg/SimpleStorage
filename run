@@ -170,7 +170,7 @@ execute() {
 
 killall() {
   set -x
-  killall rly
+  killall rly &> /dev/null | true
   killall wasmd &> /dev/null
 
   exit 0
