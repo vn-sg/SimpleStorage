@@ -33,11 +33,10 @@ upload_and_instantiate() {
   cd simple-option && RUSTFLAGS='-C link-arg=-s' cargo wasm && cd ..
   export CONTRACT_PATH=simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm
 
-
-
   echo "Terminating all existing Relayers..."
+  killall rly &> /dev/null | true
+  
   set -x
-  killall rly
 
   echo "Uploading $CONTRACT_NAME smart contract to all three blockchains..."
   ## CHAIN 0
@@ -197,13 +196,13 @@ if [ $1 = "q" ]; then
   if [ -z "$2" ]; then
     echo "Unknown query blockchain: "
     echo "Usage: ./run q [CONTENT] [BLOCKCHAIN_NAME]"
-    echo "Example: ./run q state ibc-0 "
+    echo "Example: ./run q 0 state "
     exit 1
   fi
   if [ -z "$3" ]; then
     echo "Unknown query content: "
     echo "Usage: ./run q [CONTENT] [BLOCKCHAIN_NAME]"
-    echo "Example: ./run q state ibc-0 "
+    echo "Example: ./run q 0 state "
     exit 1
   fi
   if [ $2 = "0" ]; then 
@@ -216,3 +215,9 @@ if [ $1 = "q" ]; then
     query $CHAIN_2_NODE "ibc-$2" $3 $4
   fi
 fi
+
+echo "Unknown command: $1 "
+echo "Usage: ./run [COMMAND] [PARAMETERS]"
+echo "Example: ./run q 0 state "
+exit 1
+
