@@ -107,7 +107,10 @@ ibc_link() {
   IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
   IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
   IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  
   set -x
+
+  # Link the ibc ports (blockchain0->blockchain1, blockchain0->blockchain2)
   rly tx link mypath0-1 --src-port $IBCPORT_0 --dst-port $IBCPORT_1
   rly tx link mypath0-2 --src-port $IBCPORT_0 --dst-port $IBCPORT_2
 
@@ -129,8 +132,7 @@ query() {
   else
     QUERY_MSG='{"get_tx": { "tx_id": "'$4'" } }' 
   fi
-  
-  set -x
+ 
   # Retrieve the lastest code_id
   CODE_ID=$(wasmd query wasm list-code --node $NODE --output json | jq -r ".code_infos[-1] | .code_id")
   # fetch address of the smart contract using the code_id
@@ -153,7 +155,7 @@ execute() {
   ADDR=$(wasmd query wasm list-contract-by-code $CODE_ID --node $NODE --output json | jq -r '.contracts[-1]')
   # execute set message
   # three random EXEC_msg for testing purposes
-  EXEC_MSG='{ "set": { "key": "x", "value": "testing" } }'
+  EXEC_MSG='{ "set": { "key": "testing_key_01", "value": "testing_value_01" } }'
   wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --node $NODE --from $CHAIN $FLAG0
   # EXEC_MSG='{ "set": { "key": "bbb", "value": "testing2" } }'
   # wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --node $NODE --from $CHAIN $FLAG0
