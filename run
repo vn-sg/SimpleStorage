@@ -155,7 +155,10 @@ execute() {
   ADDR=$(wasmd query wasm list-contract-by-code $CODE_ID --node $NODE --output json | jq -r '.contracts[-1]')
   # execute set message
   # three random EXEC_msg for testing purposes
-  EXEC_MSG='{ "set": { "key": "testing_key_01", "value": "testing_value_01" } }'
+  # EXEC_MSG='{ "set": { "key": "testing_key_01", "value": "testing_value_01" } }'
+  # EXEC_MSG='{ "set": { "key": "bbb", "value": "testing2" } }'
+  # EXEC_MSG='{ "set": { "key": "ccc", "value": "testing3" } }'
+  EXEC_MSG='{ "set": { "key": "test3", "value": "testing333" } }'
   wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --node $NODE --from $CHAIN $FLAG0
   # EXEC_MSG='{ "set": { "key": "bbb", "value": "testing2" } }'
   # wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --node $NODE --from $CHAIN $FLAG0
