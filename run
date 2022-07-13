@@ -34,7 +34,7 @@ upload_and_instantiate() {
   export CONTRACT_PATH=simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm
 
   echo "Terminating all existing Relayers..."
-  killall rly &> /dev/null | true
+  # killall rly &> /dev/null | true
   
   set -x
 
@@ -158,7 +158,7 @@ execute() {
   # EXEC_MSG='{ "set": { "key": "testing_key_01", "value": "testing_value_01" } }'
   # EXEC_MSG='{ "set": { "key": "bbb", "value": "testing2" } }'
   # EXEC_MSG='{ "set": { "key": "ccc", "value": "testing3" } }'
-  EXEC_MSG='{ "set": { "key": "test3", "value": "testing333" } }'
+  EXEC_MSG='{ "set": { "key": "test_key1", "value": "test_value1" } }'
   wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --node $NODE --from $CHAIN $FLAG0
   # EXEC_MSG='{ "set": { "key": "bbb", "value": "testing2" } }'
   # wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --node $NODE --from $CHAIN $FLAG0
