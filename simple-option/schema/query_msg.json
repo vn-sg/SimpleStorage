@@ -54,6 +54,30 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_channels"
+      ],
+      "properties": {
+        "get_channels": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_test"
+      ],
+      "properties": {
+        "get_test": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

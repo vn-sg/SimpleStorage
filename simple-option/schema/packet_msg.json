@@ -62,7 +62,17 @@
       ],
       "properties": {
         "who_am_i": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "chain_id"
+          ],
+          "properties": {
+            "chain_id": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
         }
       },
       "additionalProperties": false
