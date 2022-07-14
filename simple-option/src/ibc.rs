@@ -1,40 +1,74 @@
 use cosmwasm_std::{
-    entry_point, from_slice, to_binary, DepsMut, Env, StdError, StdResult, Event, Binary, Response, IbcTimeout,
+    entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, IbcTimeout, Order, Response,
+    StdError, StdResult,
 };
 use cosmwasm_std::{
-    IbcBasicResponse, IbcChannelCloseMsg,
-    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg, IbcOrder, IbcPacketAckMsg,
-    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse
+    IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg,
+    IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
 };
 
-use crate::ContractError;
 use crate::ibc_msg::{
-    AcknowledgementMsg, PacketMsg, WhoAmIResponse, CommitResponse, ProposeResponse,
+    AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse, WhoAmIResponse,
 };
 use crate::msg::ExecuteMsg;
-use crate::state::{STATE, State, VARS, Tx, TXS};
+use crate::state::{Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS};
+use crate::ContractError;
 
 pub const IBC_APP_VERSION: &str = "simple_storage";
-
 
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
 
+pub fn create_broadcast_msgs(
+    timeout: IbcTimeout,
+    channel_ids: Vec<String>,
+    packets_to_broadcast: Vec<PacketMsg>,
+    is_to_primary: bool
+) -> Result<Vec<IbcMsg>, ContractError> {
+    let mut msgs: Vec<IbcMsg> = Vec::new();
+    if is_to_primary {
+        let channel_id = &channel_ids[0];
+        for packet in packets_to_broadcast {
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id.clone(),
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            };
+            msgs.push(msg);
+        }
+    }
+    else {
+        for packet in packets_to_broadcast {
+            for channel_id in &channel_ids {
+                let msg = IbcMsg::SendPacket {
+                    channel_id: channel_id.clone(),
+                    data: to_binary(&packet)?,
+                    timeout: timeout.clone(),
+                };
+                msgs.push(msg);
+            }
+        }
+    }
+    Ok(msgs)
+}
+
 pub fn broadcast_response(
-    timeout:IbcTimeout,
-    channel_ids: Vec<String>, 
-    packet_to_broadcast: PacketMsg,
-    attrib: String
+    timeout: IbcTimeout,
+    channel_ids: Vec<(u32, String)>,
+    packets_to_broadcast: Vec<PacketMsg>,
+    attrib: String,
 ) -> Result<Response, ContractError> {
     // broadcast Propose message
     let mut msgs: Vec<IbcMsg> = Vec::new();
-    for channel_id in channel_ids {
-        let msg = IbcMsg::SendPacket {
-            channel_id: channel_id.clone(),
-            data: to_binary(&packet_to_broadcast)?,
-            timeout: timeout.clone()
-        };
-        msgs.push(msg);
+    for packet in packets_to_broadcast {
+        for (_, channel_id) in &channel_ids {
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id.clone(),
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            };
+            msgs.push(msg);
+        }
     }
 
     let res = Response::new()
@@ -42,7 +76,6 @@ pub fn broadcast_response(
         .add_attribute("action", attrib);
     Ok(res)
 }
-    
 
 fn _verify_channel(msg: IbcChannelOpenMsg) -> StdResult<()> {
     let channel = msg.channel();
@@ -85,21 +118,29 @@ pub fn ibc_channel_connect(
     let channel = msg.channel();
     // Retrieve the connecting channel_id
     let channel_id = &channel.endpoint.channel_id;
-    
-    let action = | mut state: State | -> StdResult<_> {
-        state.channel_ids.push(channel_id.to_string());
-        Ok(state)
+
+    // Keep a record of connected channels
+    let mut state = STATE.load(deps.storage)?;
+    state.channel_ids.push(channel_id.to_string());
+    STATE.save(deps.storage, &state)?;
+    // let dst_port =  &channel.counterparty_endpoint.port_id;
+
+    // let action = | mut state: State | -> StdResult<_> {
+    //     state.channel_ids.insert(dst_port.to_string(), channel_id.to_string());
+    //     Ok(state)
+    // };
+    // Storing channel_id info to state
+    // STATE.update(deps.storage, action)?;
+
+    // let action = |_| -> StdResult<String> {
+    //     Ok(channel_id.to_string())
+    // };
+    // CHANNELS.update(deps.storage, dst_port.to_string(), action)?;
+
+    // construct a packet to send, using the WhoAmI specification
+    let packet = PacketMsg::WhoAmI {
+        chain_id: state.chain_id,
     };
-    // Storing channel_id info to state 
-    STATE.update(deps.storage, action)?;
-    
-    // retrieve current State
-    // let mut state = STATE.load(deps.storage)?;
-    // state.channel_ids.push(channel_id.to_string());
-    // // store connected channel_id in local state
-    // STATE.save(deps.storage, &state)?;
-    // construct a packet to send
-    let packet = PacketMsg::WhoAmI {};
     let msg = IbcMsg::SendPacket {
         channel_id: channel_id.clone(),
         data: to_binary(&packet)?,
@@ -115,19 +156,26 @@ pub fn ibc_channel_connect(
 #[entry_point]
 /// On closed channel, simply delete the channel_id local state
 pub fn ibc_channel_close(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     msg: IbcChannelCloseMsg,
 ) -> StdResult<IbcBasicResponse> {
     // fetch the connected channel_id
     let channel = msg.channel();
     let channel_id = &channel.endpoint.channel_id;
+    // Remove the channel_ids stored in CHANNELS
+    // CHANNELS.remove(deps.storage, dst_port.to_string());
 
-    let action = | mut state: State | -> StdResult<_> {
-        state.channel_ids.retain(|e| !(e==channel_id));
-        Ok(state)
-    };
-    STATE.update(deps.storage, action)?;
+    // let action = | mut state: State | -> StdResult<_> {
+    //     state.channel_ids.retain(|_, v| !(v==channel_id));
+    //     Ok(state)
+    // };
+    // STATE.update(deps.storage, action)?;
+
+    // let action = |_| -> StdResult<String> {
+    //     Ok(channel_id.to_string())
+    // };
+    // CHANNELS.update(deps.storage, dst_port.to_string(), action)?;
 
     // remove the channel
     // let mut state = STATE.load(deps.storage)?;
@@ -155,12 +203,22 @@ pub fn ibc_packet_receive(
     (|| {
         let packet = msg.packet;
         // which local channel did this packet come on
-        let caller = packet.dest.channel_id;
+        let dest_channel_id = packet.dest.channel_id;
         let msg: PacketMsg = from_slice(&packet.data)?;
         match msg {
-            PacketMsg::Propose{ msg, tx_id }=>receive_propose(deps,caller,msg,tx_id),
-            PacketMsg::WhoAmI{}=>receive_who_am_i(deps,caller),
-            PacketMsg::Commit{ msg, tx_id }=>receive_commit(deps, caller, msg, tx_id)
+            PacketMsg::Propose { msg, tx_id } => receive_propose(deps, dest_channel_id, msg, tx_id),
+            PacketMsg::WhoAmI { chain_id } => receive_who_am_i(deps, dest_channel_id, chain_id),
+            PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
+            PacketMsg::Request { view, chain_id } => receive_request(deps, dest_channel_id, view, chain_id),
+            
+            PacketMsg::Suggest {
+                view: _,
+                key2: _,
+                key2_val: _,
+                prev_key2: _,
+                key3: _,
+                key3_val: _,
+            } => todo!(),
         }
     })()
     .or_else(|e| {
@@ -177,42 +235,58 @@ pub fn ibc_packet_receive(
     //     .add_attribute("action", "ibc_packet_ack"))
 }
 
-pub fn receive_propose (
+pub fn receive_request(
+    deps: DepsMut,
+    _caller: String,
+    view: u32,
+    chain_id: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let highest_request = HIGHEST_REQ.load(deps.storage, chain_id)?;
+    if highest_request < view {
+        HIGHEST_REQ.save(deps.storage, chain_id, &view)?;
+    }
+    let response = RequestResponse {};
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
+
+    Ok(IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_request")
+        .add_attribute("chain_id", chain_id.to_string()))
+}
+
+pub fn receive_propose(
     _deps: DepsMut,
     _caller: String,
     _msg: ExecuteMsg,
-    tx_id: u32
+    tx_id: u32,
 ) -> StdResult<IbcReceiveResponse> {
     let _response = ProposeResponse { tx_id };
     // to_binary(&AcknowledgementMsg::<DispatchResponse>::Ok(()))?;
 
     // specify the type of AcknowledgementMsg to be ProposeResponse
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(ProposeResponse { tx_id: tx_id.clone() } ))?;
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(ProposeResponse {
+        tx_id: tx_id.clone(),
+    }))?;
     // send back acknowledgement, containing the response info
     Ok(IbcReceiveResponse::new()
         .set_ack(acknowledgement)
         .add_attribute("action", "receive_propose"))
 }
-pub fn receive_commit (
+pub fn receive_commit(
     deps: DepsMut,
     _caller: String,
     msg: ExecuteMsg,
-    tx_id: u32
+    tx_id: u32,
 ) -> StdResult<IbcReceiveResponse> {
-        match msg {
-            ExecuteMsg::Set { key, value } => try_set(deps, key, value, tx_id),
-            ExecuteMsg::Get { key } => try_get(deps, key, tx_id),
-        }
-
+    match msg {
+        ExecuteMsg::Set { key, value } => try_set(deps, key, value, tx_id),
+        ExecuteMsg::Get { key } => try_get(deps, key, tx_id),
+    }
 }
-pub fn try_get(
-    deps: DepsMut, 
-    key: String,
-    tx_id: u32
-) -> StdResult<IbcReceiveResponse>  {
+pub fn try_get(deps: DepsMut, key: String, tx_id: u32) -> StdResult<IbcReceiveResponse> {
     // let value = state.variables[&key].clone();
-    let value = VARS.may_load(deps.storage, &key)?.unwrap(); 
-    
+    let value = VARS.may_load(deps.storage, &key)?.unwrap();
+
     let response = CommitResponse { tx_id };
     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
 
@@ -222,24 +296,23 @@ pub fn try_get(
         .add_attribute("action", "commit")
         .add_attribute("msg", "Get")
         .add_attribute("key", key)
-        .add_attribute("value", value ))
-
+        .add_attribute("value", value))
 }
 
-pub fn try_set( 
-    deps: DepsMut, 
-    key: String, 
+pub fn try_set(
+    deps: DepsMut,
+    key: String,
     value: String,
-    tx_id: u32
+    tx_id: u32,
 ) -> StdResult<IbcReceiveResponse> {
     // let mut state = STATE.load(deps.storage)?;
-    let action = |_| -> StdResult<String> {
-        Ok(value.clone())
-    };
+    let action = |_| -> StdResult<String> { Ok(value.clone()) };
     VARS.update(deps.storage, &key, action)?;
     // STATE.save(deps.storage, &state)?;
 
-    let response = CommitResponse { tx_id: tx_id.clone() };
+    let response = CommitResponse {
+        tx_id: tx_id.clone(),
+    };
     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
 
     Ok(IbcReceiveResponse::new()
@@ -248,18 +321,31 @@ pub fn try_set(
         .add_attribute("msg", "Set")
         .add_attribute("tx_id", tx_id.to_string())
         .add_attribute("key", key)
-        .add_attribute("value", value ))
-
+        .add_attribute("value", value))
 }
 
 // processes PacketMsg::WhoAmI
-fn receive_who_am_i(_deps: DepsMut, _caller: String) -> StdResult<IbcReceiveResponse> {
+fn receive_who_am_i(
+    deps: DepsMut,
+    channel_id: String,
+    chain_id: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let action = |_| -> StdResult<String> { Ok(channel_id.to_string()) };
+    CHANNELS.update(deps.storage, chain_id, action)?;
+
+    // initialize the highest_request of that chain
+    let action = |_| -> StdResult<u32> { Ok(0) };
+    HIGHEST_REQ.update(deps.storage, chain_id, action)?;
+    // initialize the highest_request of that chain
+    HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
+
     let response = WhoAmIResponse {};
     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
     // and we are golden
     Ok(IbcReceiveResponse::new()
         .set_ack(acknowledgement)
-        .add_attribute("action", "receive_who_am_i"))
+        .add_attribute("action", "receive_who_am_i")
+        .add_attribute("chain_id", chain_id.to_string()))
 }
 
 #[entry_point]
@@ -268,18 +354,20 @@ pub fn ibc_packet_ack(
     env: Env,
     msg: IbcPacketAckMsg,
 ) -> StdResult<IbcBasicResponse> {
-
     let packet: PacketMsg = from_slice(&msg.original_packet.data)?;
     match packet {
         PacketMsg::Propose { tx_id: _, msg: _ } => {
             let res: AcknowledgementMsg<ProposeResponse> = from_slice(&msg.acknowledgement.data)?;
             acknowledge_propose(deps, env, res)
-        },
+        }
         PacketMsg::Commit { msg: _, tx_id: _ } => Ok(IbcBasicResponse::new()),
-        PacketMsg::WhoAmI {  } => Ok(IbcBasicResponse::new()),
-}
-
-
+        PacketMsg::WhoAmI { chain_id: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Request {
+            chain_id: _,
+            view: _,
+        } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Suggest { view: _, key2: _, key2_val: _, prev_key2: _, key3: _, key3_val: _ } => todo!(),
+    }
 }
 
 fn acknowledge_propose(
@@ -296,52 +384,66 @@ fn acknowledge_propose(
                 .add_attribute("error", e))
         }
     };
-    let action = 
-    |tx: Option<Tx>| -> StdResult<Tx> {
+    let action = |tx: Option<Tx>| -> StdResult<Tx> {
         let mut tx = tx.unwrap();
         tx.no_of_votes += 1;
-        Ok( tx )
+        Ok(tx)
     };
 
-    let tx = TXS.update(deps.storage, tx_id.clone(), action)?; 
+    let tx = TXS.update(deps.storage, tx_id.clone(), action)?;
     // broadcast Commit message
     if tx.no_of_votes >= 2 {
-        let state: State = STATE.load(deps.storage)?;
-        let channel_ids = state.channel_ids.clone();
-        let packet = PacketMsg::Commit { msg: tx.msg.clone(), tx_id: tx_id.clone() };
-        let timeout: IbcTimeout= env.block.time.plus_seconds(PACKET_LIFETIME).into();
+        // let state: State = STATE.load(deps.storage)?;
+        // let channel_ids = state.channel_ids.clone();
+        let channel_ids: StdResult<Vec<_>> = CHANNELS
+            .range(deps.storage, None, None, Order::Ascending)
+            .collect();
+        let channel_ids = channel_ids?;
+        let packet = PacketMsg::Commit {
+            msg: tx.msg.clone(),
+            tx_id: tx_id.clone(),
+        };
+        let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
 
         receive_commit(deps, "self".to_string(), tx.msg.clone(), tx_id.clone())?;
-        
-        let msg0 = IbcMsg::SendPacket {
-            channel_id: channel_ids[0].clone(),
-            data: to_binary(&packet)?,
-            timeout: timeout.clone()
-        };
-        let msg1 = IbcMsg::SendPacket {
-            channel_id: channel_ids[1].clone(),
-            data: to_binary(&packet)?,
-            timeout: timeout.clone()
-        };
-        
+
+        // Broadcast Commit messages
+        let mut commit_msgs: Vec<IbcMsg> = Vec::new();
+        for (_, channel_id) in channel_ids {
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id.clone(),
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            };
+            commit_msgs.push(msg);
+        }
+
+        // let msg0 = IbcMsg::SendPacket {
+        //     channel_id: channel_ids[0].clone(),
+        //     data: to_binary(&packet)?,
+        //     timeout: timeout.clone()
+        // };
+        // let msg1 = IbcMsg::SendPacket {
+        //     channel_id: channel_ids[1].clone(),
+        //     data: to_binary(&packet)?,
+        //     timeout: timeout.clone()
+        // };
+
         Ok(IbcBasicResponse::new()
-        .add_message(msg0)
-        .add_message(msg1)
-        .add_attribute("action", "acknowledge_propose_response")
-        .add_attribute("commit", "true"))
-    }
-    else {
+            // .add_message(msg0)
+            // .add_message(msg1)
+            .add_messages(commit_msgs)
+            .add_attribute("action", "acknowledge_propose_response")
+            .add_attribute("commit", "true"))
+    } else {
         Ok(IbcBasicResponse::new()
-        .add_attribute("action", "acknowledge_propose_response")
-        .add_attribute("commit", "false"))
+            .add_attribute("action", "acknowledge_propose_response")
+            .add_attribute("commit", "false"))
     }
-            
-    
 }
 
-
 #[entry_point]
-/// This will never be called since 
+/// This will never be called
 pub fn ibc_packet_timeout(
     _deps: DepsMut,
     _env: Env,
@@ -354,7 +456,7 @@ pub fn ibc_packet_timeout(
 mod tests {
     use super::*;
     use crate::contract::{execute, instantiate, query};
-    use crate::msg::{InstantiateMsg, QueryMsg, ExecuteMsg};
+    use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_ibc_channel_connect_ack, mock_ibc_channel_open_init,
@@ -365,7 +467,11 @@ mod tests {
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies();
-        let msg = InstantiateMsg { role: "leader".to_string() };
+        let msg = InstantiateMsg {
+            role: "leader".to_string(),
+            chain_id: 0,
+            input: 0,
+        };
         let info = mock_info("creator_V", &coins(100, "BTC"));
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -395,5 +501,4 @@ mod tests {
             o => panic!("Unexpected message: {:?}", o),
         };
     }
-
 }

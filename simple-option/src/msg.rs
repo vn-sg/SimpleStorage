@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub role: String,
-    // pub channel_ids: Vec<String>
+    pub chain_id: u32,
+    pub input: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -20,7 +21,9 @@ pub enum QueryMsg {
     /// GetValue querys value for given key, GetState returns the current state, GetTx returns tx with tx_id
     GetValue { key: String },
     GetState { },
-    GetTx { tx_id: String }
+    GetTx { tx_id: String },
+    GetChannels { },
+    GetTest { }
 }
 
 // We define a custom struct for each query response
@@ -33,3 +36,9 @@ pub enum ValueResponse {
     KeyNotFound {
     }
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ChannelsResponse {
+    pub port_chan_pair: Vec<(u32,String)>,
+}
+
