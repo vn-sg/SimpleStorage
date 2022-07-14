@@ -12,9 +12,10 @@ if [ -z "$1" ]; then
   display_usage "[COMMAND] ($1|upload)"
 fi
 
-export CHAIN_0_NODE=http://127.0.0.1:26657
-export CHAIN_1_NODE=http://127.0.0.1:26557
-export CHAIN_2_NODE=http://127.0.0.1:25557
+export CHAIN_0_NODE=http://127.0.0.1:26555
+export CHAIN_1_NODE=http://127.0.0.1:26556
+export CHAIN_2_NODE=http://127.0.0.1:26557
+export CHAIN_2_NODE=http://127.0.0.1:26558
 
 
 
