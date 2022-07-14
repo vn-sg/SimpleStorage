@@ -43,16 +43,16 @@ deployAll()
     set -x
     killall rly
     set -e
-    cd ./simplestorage/
+    cd ./simple-option/
     cargo wasm
     cd ..
 
     docker run --rm -v "$(pwd)":/code \
         --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
         --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-        cosmwasm/rust-optimizer-arm64:0.12.5 ./simplestorage/
+        cosmwasm/rust-optimizer-arm64:0.12.5 ./simple-option/
 
-    file="simplestorage/target/wasm32-unknown-unknown/release/simplestorage.wasm"
+    file="simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm"
     #wasmd's MaxWasmSize change to higher https://github.com/CosmWasm/wasmd/blob/bfb4d31fcafa9acf148e7a9b07b3baed5938c38a/x/wasm/types/validation.go#L12 to skip optimization
 #    docker run --rm -v "$(pwd)":/code \
 #        --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
@@ -130,16 +130,16 @@ deployOne()
     chain='ibc-0'
     set -e
     set -x
-    cd ./simplestorage/
+    cd ./simple-option/
     cargo wasm
     cd ..
 
     docker run --rm -v "$(pwd)":/code \
         --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
         --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-        cosmwasm/rust-optimizer-arm64:0.12.5 ./simplestorage/
+        cosmwasm/rust-optimizer-arm64:0.12.5 ./simple-option/
 
-    file="simplestorage/target/wasm32-unknown-unknown/release/simplestorage.wasm"
+    file="simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm"
     wasmd tx wasm store $file --node $node --from $user --chain-id $chain --gas-prices "0.025stake" --gas auto --gas-adjustment 1.5 --broadcast-mode block -y $keyring
 
     # get code id of deployed contract and
