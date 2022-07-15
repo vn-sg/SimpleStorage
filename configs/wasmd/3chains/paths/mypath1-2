@@ -1,6 +1,6 @@
 {
     "src": {
-        "chain-id": "ibc-0",
+        "chain-id": "ibc-1",
         "order": "unordered",
         "version": "simplestoragev1"
     },

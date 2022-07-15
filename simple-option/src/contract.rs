@@ -9,7 +9,7 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::ibc::{view_change, PACKET_LIFETIME};
 use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, SuggestionsResponse};
-use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST};
+use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -24,6 +24,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let state = State {
         role: msg.role,
+        n: 1,
         chain_id: msg.chain_id,
         channel_ids: Vec::new(),
         current_tx_id: 0,
@@ -51,10 +52,9 @@ pub fn instantiate(
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
     // initialize the highest_request of oneself
-    let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
-    // initialize the highest_request of oneself
-    HIGHEST_REQ.update(deps.storage, msg.chain_id, action)?;
+    HIGHEST_REQ.save(deps.storage, msg.chain_id, &0)?;
     // initialize the highest_abort of oneself
     HIGHEST_ABORT.save(deps.storage, msg.chain_id, &0)?;
 
@@ -77,10 +77,11 @@ pub fn handle_execute_input(
         .collect();
     let all_chain_ids = all_chain_ids?;
     for chain_id in all_chain_ids {
-        HIGHEST_REQ.save(deps.storage, chain_id, &u32::MAX)?;
+        HIGHEST_REQ.save(deps.storage, chain_id, &0)?;
         // Resetting highest_abort
         HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
         RECEIVED_SUGGEST.save(deps.storage, chain_id, &false)?;
+        RECEIVED_PROOF.save(deps.storage, chain_id, &false)?;
     }
     /* a better way?
     CHANNELS
@@ -109,7 +110,7 @@ pub fn handle_execute_input(
     // Set the primary to be (view mod n) + 1
     state.primary = state.view % 4 + 1;
 
-    //// process_messages() part ////
+    ////    process_messages() part     ////
     // initialize proofs to an empty set
     state.proofs = Vec::new();
 
@@ -122,11 +123,17 @@ pub fn handle_execute_input(
     let msgs = view_change(deps, timeout.clone())?;
 
     // broadcast message
-    let res = Response::new()
-        .add_messages(msgs)
-        .add_attribute("action", "broadcast");
-
-    Ok(res)
+    if !msgs.is_empty() {
+        Ok(Response::new()
+            .add_messages(msgs)
+            .add_attribute("action", "execute")
+            .add_attribute("msg_type", "input"))
+    }
+    else {
+        Ok(Response::new()
+            .add_attribute("action", "execute")
+            .add_attribute("msg_type", "input"))
+    }
 }
 
 // execute entry_point is used for beginning new instance of IT-HS consensus
@@ -189,14 +196,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTx { tx_id } => to_binary(&query_tx(deps, tx_id)?),
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
-        QueryMsg::GetSuggestions { } => to_binary(&query_suggestions(deps)?),
+        QueryMsg::GetHighestReq { } => to_binary(&query_highest_request(deps)?),
     }
 }
 
-fn query_suggestions(deps: Deps) -> StdResult<SuggestionsResponse> {
-    let state = STATE.load(deps.storage)?;
+fn query_highest_request(deps: Deps) -> StdResult<SuggestionsResponse> {
+    let req: StdResult<Vec<_>> = HIGHEST_REQ.range(deps.storage, None, None, Order::Ascending).collect();
     Ok(SuggestionsResponse {
-        suggestions: state.suggestions,
+        suggestions: req?,
     })
 }
 

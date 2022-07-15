@@ -82,10 +82,10 @@
     {
       "type": "object",
       "required": [
-        "get_suggestions"
+        "get_highest_req"
       ],
       "properties": {
-        "get_suggestions": {
+        "get_highest_req": {
           "type": "object"
         }
       },

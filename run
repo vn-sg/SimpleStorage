@@ -28,7 +28,14 @@ export FLAG1="--node $CHAIN_1_NODE --chain-id ibc-1 $BASE_FLAG"
 export FLAG2="--node $CHAIN_2_NODE --chain-id ibc-2 $BASE_FLAG"
 export FLAG3="--node $CHAIN_3_NODE --chain-id ibc-3 $BASE_FLAG"
 
-start_rly() {
+start_rly3() {
+  rly start mypath0-1 --debug-addr localhost:7597 & 
+  rly start mypath0-2 --debug-addr localhost:7598 &
+  rly start mypath1-2 --debug-addr localhost:7602 && 
+  fg
+}
+
+start_rly4() {
   rly start mypath0-1 --debug-addr localhost:7597 & 
   rly start mypath0-2 --debug-addr localhost:7598 &
   rly start mypath0-3 --debug-addr localhost:7599 &
@@ -47,7 +54,7 @@ upload_and_instantiate3() {
   echo "Terminating all existing Relayers..."
   # killall rly &> /dev/null | true
   
-  set -x
+  set +x
 
   echo "Uploading $CONTRACT_NAME smart contract to all three blockchains..."
   ## CHAIN 0
@@ -66,12 +73,16 @@ upload_and_instantiate3() {
   # Instantiate the smart contracts
   echo "Instantiating smart contracts..."
 
-  INSTANTIATE_MSG_LEADER='{"role": "leader"}'
-  INSTANTIATE_MSG_FOLLOWER='{"role": "follower"}'
+  # INSTANTIATE_MSG_LEADER='{"role": "leader"}'
+  # INSTANTIATE_MSG_FOLLOWER='{"role": "follower"}'
+  INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0"}'
+  INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1"}'
+  INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2"}'
+  INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3"}'
 
-  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_LEADER" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_FOLLOWER" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN2 "$INSTANTIATE_MSG_FOLLOWER" --from ibc-2 --label "simple_storage" $FLAG2 -y --no-admin > /dev/null
+  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
+  wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
+  wasmd tx wasm instantiate $CODE_ID_CHAIN2 "$INSTANTIATE_MSG_CHAIN2" --from ibc-2 --label "simple_storage" $FLAG2 -y --no-admin > /dev/null
 
   echo "Instantiation completed!"
 
@@ -199,7 +210,8 @@ ibc_link3() {
 
   # Link the ibc ports (blockchain0->blockchain1, blockchain0->blockchain2)
   rly tx link mypath0-1 --src-port $IBCPORT_0 --dst-port $IBCPORT_1
-  rly tx link mypath0-3 --src-port $IBCPORT_0 --dst-port $IBCPORT_2
+  rly tx link mypath0-2 --src-port $IBCPORT_0 --dst-port $IBCPORT_2
+  rly tx link mypath1-2 --src-port $IBCPORT_1 --dst-port $IBCPORT_2
 
   exit 0
 }
@@ -247,8 +259,8 @@ query() {
   CHAIN=$2
   if [ $3 = "state" ]; then
     QUERY_MSG='{"get_state": {}}' 
-  elif [ $3 = suggest ]; then
-    QUERY_MSG='{"get_suggestions": {}}' 
+  elif [ $3 = req ]; then
+    QUERY_MSG='{"get_highest_req": {}}' 
   elif [ $3 = "chan" ]; then
     QUERY_MSG='{"get_channels": {}}' 
   elif [ $3 = "test" ]; then
@@ -266,6 +278,33 @@ query() {
   # query current state
   
   wasmd query wasm contract-state smart $ADDR "$QUERY_MSG" --output json --chain-id $CHAIN --node $NODE
+
+  exit 0
+}
+
+execute3() {
+
+  # Retrieve the lastest code_id
+  CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+
+  # fetch address of the smart contract using the code_id
+  ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+  ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+  ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+
+  # execute set message
+  # three random EXEC_msg for testing purposes
+  EXEC_MSG0='{ "input": { "value": "0"} }'
+  EXEC_MSG1='{ "input": { "value": "1"} }'
+  EXEC_MSG2='{ "input": { "value": "2"} }'
+
+  set -x
+  
+  wasmd tx wasm execute $ADDR0 "$EXEC_MSG0" --output json --from ibc-0 $FLAG0 -y
+  wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
+  wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
 
   exit 0
 }
@@ -321,18 +360,33 @@ if [ $1 = "upload4" ]; then
   upload_and_instantiate4
 fi
 
-# start the relayer
-if [ $1 = "startrly" ]; then 
-  start_rly
+# start the relayer for 3 chains
+if [ $1 = "rly3" ]; then 
+  start_rly3
 fi
 
-# ibc link command
-if [ $1 = "link" ]; then 
+# start the relayer for 4 chains
+if [ $1 = "rly4" ]; then 
+  start_rly4
+fi
+
+# ibc link3 command
+if [ $1 = "link3" ]; then 
+  ibc_link3
+fi
+
+# ibc link4 command
+if [ $1 = "link4" ]; then 
   ibc_link4
 fi
 
 # execute command
-if [ $1 = "e" ]; then 
+if [ $1 = "e3" ]; then 
+  execute3
+fi
+
+# execute command
+if [ $1 = "e4" ]; then 
   execute
 fi
 

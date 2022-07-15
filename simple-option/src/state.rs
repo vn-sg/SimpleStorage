@@ -8,6 +8,7 @@ use crate::msg::ExecuteMsg;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub role: String,
+    pub n: u32,
     pub chain_id: u32,
     pub channel_ids: Vec<String>,
     pub current_tx_id: u32,
@@ -55,6 +56,7 @@ pub const CHANNELS: Map<u32, String> = Map::new("channels");
 pub const HIGHEST_REQ: Map<u32, u32> = Map::new("highest_req");
 pub const HIGHEST_ABORT: Map<u32, u32> = Map::new("highest_abort");
 pub const RECEIVED_SUGGEST: Map<u32, bool> = Map::new("received_suggest");
+pub const RECEIVED_PROOF: Map<u32, bool> = Map::new("received_proof");
 // pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
 
