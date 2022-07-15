@@ -3,7 +3,7 @@
     "value": {
       "key": "testkey",
       "chain-id": "ibc-3",
-      "rpc-addr": "http://localhost:24557",
+      "rpc-addr": "http://localhost:26557",
       "grpc-addr": "",
       "account-prefix": "wasm",
       "keyring-backend": "test",

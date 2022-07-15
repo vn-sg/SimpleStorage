@@ -15,12 +15,17 @@ USER="user"
 INIT_JSON='{"count": 1}'
 INIT_JSON_2='{ "reflect_code_id": 1}'
 
+INSTANTIATE_MSG_CHAIN0='{"role": "leader","chain_id": 0,"input": 0}'
+INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": 1}'
+INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": 2}'
+INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": 3}'
+
 
 target=$2
 param1=$3
 node=$(expr 5 + $2)
-node="http://127.0.0.1:26$node"
-node+="57"
+node="http://127.0.0.1:2655$node"
+#node+="57"
 keyring="--keyring-backend test --keyring-dir ./data/ibc-$target"
 chain="ibc-$2"
 
@@ -44,13 +49,13 @@ deployAll()
     killall rly
     set -e
     cd ./simple-option/
-    cargo wasm
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
     cd ..
 
-    docker run --rm -v "$(pwd)":/code \
-        --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-        --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-        cosmwasm/rust-optimizer-arm64:0.12.5 ./simple-option/
+#    docker run --rm -v "$(pwd)":/code \
+#        --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+#        --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+#        cosmwasm/rust-optimizer-arm64:0.12.5 ./simple-option/
 
     file="simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm"
     #wasmd's MaxWasmSize change to higher https://github.com/CosmWasm/wasmd/blob/bfb4d31fcafa9acf148e7a9b07b3baed5938c38a/x/wasm/types/validation.go#L12 to skip optimization
@@ -72,9 +77,9 @@ deployAll()
     code_id_2=$(wasmd query wasm list-code --node $NODE_2 --output json | jq -r ".code_infos[-1] | .code_id")
 
     #instantiate contracts at all chains
-    wasmd tx wasm instantiate $code_id_0 "$INIT_JSON" --node $NODE_0 --from $USER --chain-id ibc-0 $GAS_FLAG -y --label "simplestorage" --no-admin $KEYRING_0
-    wasmd tx wasm instantiate $code_id_1 "$INIT_JSON" --node $NODE_1 --from $USER --chain-id ibc-1 $GAS_FLAG -y --label "simplestorage" --no-admin $KEYRING_1
-    wasmd tx wasm instantiate $code_id_2 "$INIT_JSON" --node $NODE_2 --from $USER --chain-id ibc-2 $GAS_FLAG -y --label "simplestorage" --no-admin $KEYRING_2
+    wasmd tx wasm instantiate $code_id_0 "$INSTANTIATE_MSG_CHAIN0" --node $NODE_0 --from $USER --chain-id ibc-0 $GAS_FLAG -y --label "simplestorage" --no-admin $KEYRING_0
+    wasmd tx wasm instantiate $code_id_1 "$INSTANTIATE_MSG_CHAIN1" --node $NODE_1 --from $USER --chain-id ibc-1 $GAS_FLAG -y --label "simplestorage" --no-admin $KEYRING_1
+    wasmd tx wasm instantiate $code_id_2 "$INSTANTIATE_MSG_CHAIN2" --node $NODE_2 --from $USER --chain-id ibc-2 $GAS_FLAG -y --label "simplestorage" --no-admin $KEYRING_2
 
     sleep 2
     contract_address_0=$(wasmd query wasm list-contract-by-code $code_id_0 --node $NODE_0 --output json | jq -r '.contracts[-1]')
@@ -94,8 +99,8 @@ deployAll()
 
     echo "-----------------------------------------Link Setup-----------------------------------------------"
     set -x
-    rly tx link path01 --src-port $ibc_port_0 --dst-port $ibc_port_1 --order ordered --version trustboost-test 
-    rly tx link path02 --src-port $ibc_port_0 --dst-port $ibc_port_2 --order ordered --version trustboost-test
+    rly tx link mypath0-1 --src-port $ibc_port_0 --dst-port $ibc_port_1 --order ordered --version trustboost-test 
+    rly tx link mypath0-2 --src-port $ibc_port_0 --dst-port $ibc_port_2 --order ordered --version trustboost-test
     set +x
 
     sleep 2
@@ -131,13 +136,8 @@ deployOne()
     set -e
     set -x
     cd ./simple-option/
-    cargo wasm
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
     cd ..
-
-    docker run --rm -v "$(pwd)":/code \
-        --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-        --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-        cosmwasm/rust-optimizer-arm64:0.12.5 ./simple-option/
 
     file="simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm"
     wasmd tx wasm store $file --node $node --from $user --chain-id $chain --gas-prices "0.025stake" --gas auto --gas-adjustment 1.5 --broadcast-mode block -y $keyring
@@ -145,7 +145,7 @@ deployOne()
     # get code id of deployed contract and
     # instantiate contract and get address of the instantiated contract
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
-    wasmd tx wasm instantiate $code_id "$init" --node $node --from $user --chain-id $chain $GAS_FLAG -y --label "simplestorage" --no-admin $keyring
+    wasmd tx wasm instantiate $code_id "$INSTANTIATE_MSG_CHAIN0" --node $node --from $user --chain-id $chain $GAS_FLAG -y --label "simplestorage" --no-admin $keyring
     # wait 2 secs for the contract to be deployed properly
     sleep 2
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
@@ -196,9 +196,19 @@ queryChan()
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    QUERY_MSG="{\"list_channels\": "[]"}"
+    QUERY_MSG="{\"get_channels\": {}}" 
     wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node
 }
+
+queryDebug()
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    QUERY_MSG="{\"get_debug\": {}}" 
+    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node
+}
+
 
 
 listChannels() 
@@ -247,6 +257,8 @@ elif [ $1 = "queryCV" ]  || [ $1 = "getCV" ]; then
     queryCV
 elif [ $1 = "queryChan" ]; then
     queryChan
+elif [ $1 = "queryDebug" ]; then
+    queryDebug
 else
     echo "unknown method in helper script see"
 fi

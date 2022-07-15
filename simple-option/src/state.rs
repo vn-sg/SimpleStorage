@@ -40,6 +40,13 @@ pub struct Test {
     pub dest_chan_id: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SetRequest {
+    pub id: String,
+    pub key: String,
+    pub value: String,
+}
+
 
 pub const STATE: Item<State> = Item::new("state");
 
@@ -50,5 +57,9 @@ pub const CHANNELS: Map<u32, String> = Map::new("channels");
 pub const HIGHEST_REQ: Map<u32, u32> = Map::new("highest_req");
 pub const HIGHEST_ABORT: Map<u32, u32> = Map::new("highest_abort");
 
+pub const REQUEST_ID_MAP: Map<String, SetRequest> = Map::new("request_id_map");
+pub const REQUEST_COUNT_FROM_SC: Map<String, u32> =  Map::new("request_count_sc");
+pub const REQUEST_COUNT_FROM_CLIENT: Map<String, u32> =  Map::new("request_count_client");
 
+pub const DEBUG: Map<u32, String> = Map::new("debug");
 

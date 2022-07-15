@@ -4,14 +4,14 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{
     IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg,
-    IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
+    IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse
 };
 
 use crate::ibc_msg::{
     AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse, WhoAmIResponse,
 };
 use crate::msg::ExecuteMsg;
-use crate::state::{Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS};
+use crate::state::{Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, DEBUG};
 use crate::ContractError;
 
 pub const IBC_APP_VERSION: &str = "simple_storage";
@@ -103,8 +103,9 @@ fn _verify_channel(msg: IbcChannelOpenMsg) -> StdResult<()> {
 
 #[entry_point]
 /// enforces ordering and versioing constraints
-pub fn ibc_channel_open(_deps: DepsMut, _env: Env, _msg: IbcChannelOpenMsg) -> StdResult<()> {
+pub fn ibc_channel_open(deps: DepsMut, _env: Env, _msg: IbcChannelOpenMsg) -> StdResult<()> {
     // verify_channel(msg)?;
+    DEBUG.save(deps.storage, 600, &String::from("IBC_CHANNEL_OPEN"))?;
     Ok(())
 }
 
@@ -118,6 +119,9 @@ pub fn ibc_channel_connect(
     let channel = msg.channel();
     // Retrieve the connecting channel_id
     let channel_id = &channel.endpoint.channel_id;
+
+    DEBUG.save(deps.storage, 700, &String::from("IBC_CHANNEL_CONNECT"))?;
+
 
     // Keep a record of connected channels
     let mut state = STATE.load(deps.storage)?;
@@ -156,13 +160,16 @@ pub fn ibc_channel_connect(
 #[entry_point]
 /// On closed channel, simply delete the channel_id local state
 pub fn ibc_channel_close(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     msg: IbcChannelCloseMsg,
 ) -> StdResult<IbcBasicResponse> {
     // fetch the connected channel_id
     let channel = msg.channel();
     let channel_id = &channel.endpoint.channel_id;
+
+
+    DEBUG.save(deps.storage, 700, &String::from("IBC_CHANNEL_CLOSE"))?;
     // Remove the channel_ids stored in CHANNELS
     // CHANNELS.remove(deps.storage, dst_port.to_string());
 

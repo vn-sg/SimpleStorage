@@ -10,11 +10,12 @@ use crate::error::ContractError;
 use crate::ibc::{PACKET_LIFETIME, create_broadcast_msgs};
 use crate::ibc_msg::PacketMsg;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, ChannelsResponse};
-use crate::state::{State, STATE, VARS, Tx, TXS, CHANNELS, Test, HIGHEST_REQ, HIGHEST_ABORT};
+use crate::state::{State, STATE, VARS, Tx, TXS, CHANNELS, Test, HIGHEST_REQ, HIGHEST_ABORT, DEBUG};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const NODE_COUNT: u32 = 4;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -55,6 +56,7 @@ pub fn instantiate(
     // initialize the highest_abort of oneself
     HIGHEST_ABORT.save(deps.storage, msg.chain_id, &0)?;
     
+    DEBUG.save(deps.storage, 500, &String::from("INITIALIZE"))?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -74,7 +76,7 @@ pub fn execute(
     let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
  
     // Set the primary to be (view mod n) + 1
-    state.primary = state.view % 4 + 1;
+    state.primary = state.view % NODE_COUNT + 1;
 
     // Add Request message to packets_to_be_broadcasted
     let packets = vec![PacketMsg::Request{ view: state.view, chain_id: state.chain_id }];
@@ -140,6 +142,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTx { tx_id } => to_binary(&query_tx(deps, tx_id)?), 
         QueryMsg::GetChannels{  } => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest{  } => to_binary(&query_test(deps)?),
+        QueryMsg::GetDebug{  } => to_binary(&query_debug(deps)?),
     }
 }
 
@@ -162,6 +165,18 @@ fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
     })
 
 }
+
+fn query_debug(deps: Deps) -> StdResult<ChannelsResponse> {
+    let channels: StdResult<Vec<_>> = DEBUG
+    .range(deps.storage, None, None, Order::Ascending)
+    .collect();
+    // let channels = channels?;
+    Ok(ChannelsResponse {
+        port_chan_pair: channels?
+    })
+
+}
+
 
 fn query_tx(deps: Deps, tx_id: String ) -> StdResult<Tx> {
     let tx_id = tx_id.parse::<u32>().unwrap();

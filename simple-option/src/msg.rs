@@ -23,7 +23,8 @@ pub enum QueryMsg {
     GetState { },
     GetTx { tx_id: String },
     GetChannels { },
-    GetTest { }
+    GetTest { },
+    GetDebug { },
 }
 
 // We define a custom struct for each query response
