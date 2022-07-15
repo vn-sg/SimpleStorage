@@ -19,7 +19,9 @@
               "type": "string"
             },
             "value": {
-              "type": "string"
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
             }
           }
         }
@@ -39,6 +41,26 @@
           ],
           "properties": {
             "key": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "input"
+      ],
+      "properties": {
+        "input": {
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "value": {
               "type": "string"
             }
           }

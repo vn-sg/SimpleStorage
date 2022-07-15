@@ -14,9 +14,7 @@
       "minimum": 0.0
     },
     "input": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0.0
+      "type": "string"
     },
     "role": {
       "type": "string"

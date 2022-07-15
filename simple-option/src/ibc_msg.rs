@@ -9,8 +9,15 @@ use crate::msg::ExecuteMsg;
 #[serde(rename_all = "snake_case")]
 pub enum PacketMsg {
     Propose { 
-        tx_id: u32, 
-        msg: ExecuteMsg 
+        chain_id: u32,
+        k: u32, 
+        v: String,
+        view: u32 
+    },
+    Echo {
+        // chain_id: u32,
+        val: String,
+        view: u32
     },
     Commit { 
         msg: ExecuteMsg, 
@@ -22,15 +29,20 @@ pub enum PacketMsg {
         chain_id: u32 
     },
     Suggest { 
+        chain_id: u32,
         view: u32,
         key2: u32,
-        key2_val: u32,
+        key2_val: String,
         prev_key2: i32,
         key3: u32,
-        key3_val: u32,
-    } 
-
-
+        key3_val: String
+    },
+    Proof {
+        key1: u32,
+        key1_val: String,
+        prev_key1: i32,
+        view: u32
+    }
 }
 
 /// All IBC acknowledgements are wrapped in `ContractResult`.
@@ -48,7 +60,7 @@ pub struct WhoAmIResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposeResponse { 
-    pub tx_id: u32
+    // pub tx_id: u32
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CommitResponse {
@@ -57,4 +69,8 @@ pub struct CommitResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RequestResponse {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SuggestResponse {
 }

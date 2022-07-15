@@ -78,6 +78,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_suggestions"
+      ],
+      "properties": {
+        "get_suggestions": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

@@ -12,14 +12,52 @@
         "propose": {
           "type": "object",
           "required": [
-            "msg",
-            "tx_id"
+            "chain_id",
+            "k",
+            "v",
+            "view"
           ],
           "properties": {
-            "msg": {
-              "$ref": "#/definitions/ExecuteMsg"
+            "chain_id": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
             },
-            "tx_id": {
+            "k": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "v": {
+              "type": "string"
+            },
+            "view": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "echo"
+      ],
+      "properties": {
+        "echo": {
+          "type": "object",
+          "required": [
+            "val",
+            "view"
+          ],
+          "properties": {
+            "val": {
+              "type": "string"
+            },
+            "view": {
               "type": "integer",
               "format": "uint32",
               "minimum": 0.0
@@ -76,6 +114,124 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "request"
+      ],
+      "properties": {
+        "request": {
+          "type": "object",
+          "required": [
+            "chain_id",
+            "view"
+          ],
+          "properties": {
+            "chain_id": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "view": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "suggest"
+      ],
+      "properties": {
+        "suggest": {
+          "type": "object",
+          "required": [
+            "chain_id",
+            "key2",
+            "key2_val",
+            "key3",
+            "key3_val",
+            "prev_key2",
+            "view"
+          ],
+          "properties": {
+            "chain_id": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "key2": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "key2_val": {
+              "type": "string"
+            },
+            "key3": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "key3_val": {
+              "type": "string"
+            },
+            "prev_key2": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "view": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "proof"
+      ],
+      "properties": {
+        "proof": {
+          "type": "object",
+          "required": [
+            "key1",
+            "key1_val",
+            "prev_key1",
+            "view"
+          ],
+          "properties": {
+            "key1": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "key1_val": {
+              "type": "string"
+            },
+            "prev_key1": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "view": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -98,7 +254,9 @@
                   "type": "string"
                 },
                 "value": {
-                  "type": "string"
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
                 }
               }
             }
@@ -118,6 +276,26 @@
               ],
               "properties": {
                 "key": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "input"
+          ],
+          "properties": {
+            "input": {
+              "type": "object",
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
                   "type": "string"
                 }
               }
