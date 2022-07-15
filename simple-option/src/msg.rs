@@ -5,14 +5,15 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub role: String,
     pub chain_id: u32,
-    pub input: u32,
+    pub input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Set { key: String, value: String },
+    Set { key: String, value: u32 },
     Get { key: String },
+    Input { value: String }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,7 +24,8 @@ pub enum QueryMsg {
     GetState { },
     GetTx { tx_id: String },
     GetChannels { },
-    GetTest { }
+    GetTest { },
+    GetSuggestions { }
 }
 
 // We define a custom struct for each query response
@@ -39,6 +41,11 @@ pub enum ValueResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ChannelsResponse {
-    pub port_chan_pair: Vec<(u32,String)>,
+    pub port_chan_pair: Vec<(u32,String)>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SuggestionsResponse {
+    pub suggestions: Vec<(u32, String)>
 }
 

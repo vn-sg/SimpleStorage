@@ -18,13 +18,18 @@ pub struct State {
     pub key2: u32,
     pub key3: u32,
     pub lock: u32,
-    pub key1_val: u32,
-    pub key2_val: u32,
-    pub key3_val: u32,
-    pub lock_val: u32,
+    pub key1_val: String,
+    pub key2_val: String,
+    pub key3_val: String,
+    pub lock_val: String,
 
     pub prev_key1: i32,
     pub prev_key2: i32,
+
+    pub suggestions: Vec<(u32, String)>,
+    pub key2_proofs: Vec<(u32, String, i32)>,
+    pub proofs: Vec<(u32, String, i32)>,
+    pub is_first_propose: bool
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Tx {
@@ -49,6 +54,8 @@ pub const CHANNELS: Map<u32, String> = Map::new("channels");
 // pub const TEST: Map<u32, Test> = Map::new("test");
 pub const HIGHEST_REQ: Map<u32, u32> = Map::new("highest_req");
 pub const HIGHEST_ABORT: Map<u32, u32> = Map::new("highest_abort");
+pub const RECEIVED_SUGGEST: Map<u32, bool> = Map::new("received_suggest");
+// pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
 
 
