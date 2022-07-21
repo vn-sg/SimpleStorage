@@ -61,9 +61,14 @@ pub const RECEIVED_SUGGEST: Map<u32, bool> = Map::new("received_suggest");
 pub const RECEIVED_PROOF: Map<u32, bool> = Map::new("received_proof");
 // pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
-// <Value, Count> can be changed to ID later on
+
+// <value, count>> can be changed to ID later on
 pub const CLIENT_REQ_COUNT: Map<String, u32> = Map::new("request_id_map");
-pub const CLIENT_TOTAL_COUNT: Item<u32> = Item::new("TOTAL_COUNT");
+
+// Received from this channel yet? prevent bad guys from trigerring dual vote
+pub const CLIENT_REQ_CHANNEL_REQ_DEDUPE: Map<String, bool> = Map::new("CLIENT_REQ_IS_BROADCASTED");
+pub const CLIENT_REQ_SENT: Item<bool> = Item::new("CLIENT_REQ_SENT");
+
 
 pub const DEBUG: Map<u32, String> = Map::new("debug");
 

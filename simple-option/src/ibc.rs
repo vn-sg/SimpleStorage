@@ -1,3 +1,5 @@
+use std::vec;
+
 use cosmwasm_std::{
     entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, IbcTimeout, Order, Response,
     StdError, StdResult,
@@ -15,8 +17,8 @@ use crate::ibc_msg::{
 
 use crate::msg::ExecuteMsg;
 use crate::state::{
-    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, NODE_COUNT, FAILURE_COUNT, CLIENT_REQ_COUNT,
-    DEBUG
+    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, NODE_COUNT, FAILURE_COUNT, CLIENT_REQ_COUNT, CLIENT_REQ_CHANNEL_REQ_DEDUPE
+    ,CLIENT_REQ_SENT, DEBUG
 };
 
 use crate::ContractError;
@@ -25,7 +27,7 @@ pub const IBC_APP_VERSION: &str = "simple_storage";
 
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
-const SELF_EXEC_ID_DEBUG: u64 = 100;
+const SELF_EXEC_ID_DEBUG: u64 = 1000;
 
 
 pub fn handle_client_request(
@@ -45,6 +47,9 @@ pub fn handle_client_request(
         value: input.clone()
     }];
 
+    let mut res = Response::new()
+        .add_attribute("action", "handle_client_request");
+
     CLIENT_REQ_COUNT.update(deps.storage, input,|mut state| -> StdResult<_> {
         match state {
             Some(count) => {
@@ -57,33 +62,16 @@ pub fn handle_client_request(
         }
     })?;
 
-
-    CLIENT_REQ_COUNT.update(deps.storage, "handle_client_request".into(),|mut state| -> StdResult<_> {
-        match state {
-            Some(count) => {
-                currentTot = count + 1;
-                Ok(512)
-            }
-            None => {
-                Ok(512)
-            }
-        }
-    })?;
+    CLIENT_REQ_SENT.save(deps.storage, &true);
 
     let msgs: Vec<IbcMsg> =
         create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets)?;
-
-    let self_exec_msg:SubMsg<> = SubMsg::reply_on_error(msgs[0].clone(), SELF_EXEC_ID_DEBUG);
-
     
-    let ibc_sub_msgs: Vec<SubMsg<>> = msgs.iter().map( |ibcMsg| {
-        SubMsg::reply_on_error(ibcMsg.clone(), SELF_EXEC_ID_DEBUG)
+    let ibc_sub_msgs: Vec<SubMsg<>> = msgs.iter().map( |ibc_msg| {
+        SubMsg::reply_on_error(ibc_msg.clone(), SELF_EXEC_ID_DEBUG)
     }).collect();
 
-    let res = Response::new()
-                        .add_submessages(ibc_sub_msgs)
-                        .add_attribute("action", "handle_client_request");
-    return Ok(res)
+    return Ok(res.add_submessages(ibc_sub_msgs))
 
 }
 
@@ -408,8 +396,8 @@ pub fn ibc_packet_receive(
                 CLIENT_REQ_COUNT.update(deps.storage, "DEBUG-1".to_string(), |mut state| -> StdResult<_> {
                     Ok(200)
                 })?;
-                Ok(IbcReceiveResponse::new())
-               //  receive_request(deps, dest_channel_id, 1, 1)
+                //Ok(IbcReceiveResponse::new().set_ack(b"{}"))
+                receive_client_request_broadcast(deps, env, value, dest_channel_id)
             },
         }
     })()
@@ -426,8 +414,24 @@ pub fn ibc_packet_receive(
 
 pub fn receive_client_request_broadcast(deps: DepsMut,
     env: Env,
-    val: String
+    val: String,
+    sender_channel_id: String
     ) -> StdResult<IbcReceiveResponse> {
+
+    let acknowledgement = to_binary(&ClientRequestBroadcastResponse{})?;
+    let mut res = IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_client_request_broadcast");
+
+    // Check if the message is duplicate
+    if CLIENT_REQ_CHANNEL_REQ_DEDUPE.has(deps.storage, sender_channel_id.clone()) {
+        return Ok(res);  
+    } else {
+        // Mark that this channel has send before..
+        CLIENT_REQ_CHANNEL_REQ_DEDUPE.update(deps.storage, sender_channel_id.clone(),|mut state| -> StdResult<_> {
+            Ok(true)
+        })?; 
+    }
 
     let mut currentTot = 1;
     CLIENT_REQ_COUNT.update(deps.storage, val.clone(),|mut state| -> StdResult<_> {
@@ -437,17 +441,13 @@ pub fn receive_client_request_broadcast(deps: DepsMut,
                 Ok(currentTot)
             }
             None => {
+                // Assume that it send to itself successfully
                 Ok(currentTot)
             }
         }
-    })?;
+    })?; 
 
-
-    let acknowledgement = to_binary(&ClientRequestBroadcastResponse{})?;
-    let mut res = IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_client_request_broadcast");
-
+    // if n-f execute the message..
     if currentTot == (NODE_COUNT-FAILURE_COUNT) {
         let result = handle_execute_input(deps, env, val.clone());
         match result {
@@ -455,14 +455,38 @@ pub fn receive_client_request_broadcast(deps: DepsMut,
                 return Ok(res);    
             }
             Err(_) => {
-                res.add_attribute("error", "handle_execute_input in broadcast handler error");
-                return Err(StdError::GenericErr{msg: "handle_execute_input in broadcast handler".to_string()});
+                res.add_attribute("error", "receive_client_request_broadcast in broadcast handler error");
+                return Err(StdError::GenericErr{msg: "receive_client_request_broadcast in broadcast handler".to_string()});
             }
         }
-    } else {
-        return Ok(res);         
+    // if f+1 then rebroadcast the message
+    } else if currentTot == FAILURE_COUNT+1 {
+        // Don't rebroadcast if you already broadcast the message before..
+        if CLIENT_REQ_SENT.load(deps.storage)? {
+            return Ok(res)
+        }
+
+        let state = STATE.load(deps.storage)?;
+        let packets = vec![PacketMsg::ClientRequestBroadcast{
+            value: val.clone()
+        }];    
+        let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
+        let broadcast_msgs: Result<Vec<IbcMsg>, ContractError> = create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets);
+        match broadcast_msgs {
+            Ok(msgs) => {
+                let ibc_sub_msgs: Vec<SubMsg<>> = msgs.iter().map( |ibc_msg| {
+                    SubMsg::reply_on_error(ibc_msg.clone(), SELF_EXEC_ID_DEBUG)
+                }).collect();
+                return Ok(res.add_submessages(ibc_sub_msgs));
+            }
+            Err(_) => {
+                res.add_attribute("error", "receive_client_request_broadcast rebroadcasting msgs error");
+                return Err(StdError::GenericErr{msg: "receive_client_request_broadcast rebroadcasting msgs".to_string()});
+            }
+        }        
     }
 
+    Ok(res)       
 }
 
 
@@ -583,7 +607,7 @@ pub fn receive_request(
     // Update stored highest_request for that blockchain accordingly
     let highest_request = HIGHEST_REQ.load(deps.storage, chain_id)?;
     if highest_request == u32::MAX {
-    } else if highest_request < view {
+    } else if highest_request == view {
         HIGHEST_REQ.save(deps.storage, chain_id, &view)?;
     }
 

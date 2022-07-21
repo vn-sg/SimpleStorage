@@ -12,7 +12,7 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::ibc::{view_change, PACKET_LIFETIME, handle_client_request};
 use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, SuggestionsResponse, ClientReqResponse};
-use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, CLIENT_REQ_COUNT, CLIENT_TOTAL_COUNT, NODE_COUNT, FAILURE_COUNT, RECEIVED_PROOF};
+use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, CLIENT_REQ_SENT, NODE_COUNT, CLIENT_REQ_COUNT, RECEIVED_PROOF};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -58,13 +58,14 @@ pub fn instantiate(
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+
+    CLIENT_REQ_SENT.save(deps.storage, &false)?;
+
     // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
     // initialize the highest_request of oneself
     HIGHEST_REQ.save(deps.storage, msg.chain_id, &0)?;
     // initialize the highest_abort of oneself
     HIGHEST_ABORT.save(deps.storage, msg.chain_id, &0)?;
-
-    CLIENT_TOTAL_COUNT.save(deps.storage, &0)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
