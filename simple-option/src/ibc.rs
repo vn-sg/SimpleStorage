@@ -438,7 +438,12 @@ pub fn receive_client_request_broadcast(deps: DepsMut,
         match state {
             Some(count) => {
                 currentTot = count + 1;
-                Ok(currentTot)
+
+                // Assume send to self is successful just update this to+1
+                if currentTot == FAILURE_COUNT+1 {
+                    currentTot+1;
+                }
+                Ok(currentTot+1) 
             }
             None => {
                 // Assume that it send to itself successfully
@@ -459,8 +464,10 @@ pub fn receive_client_request_broadcast(deps: DepsMut,
                 return Err(StdError::GenericErr{msg: "receive_client_request_broadcast in broadcast handler".to_string()});
             }
         }
-    // if f+1 then rebroadcast the message
-    } else if currentTot == FAILURE_COUNT+1 {
+    } 
+
+    // if f+1 then rebroadcast the message only once..
+    if currentTot >= FAILURE_COUNT+1 {
         // Don't rebroadcast if you already broadcast the message before..
         if CLIENT_REQ_SENT.load(deps.storage)? {
             return Ok(res)
