@@ -10,7 +10,7 @@ use cosmwasm_std::{
 
 use crate::ibc_msg::{
     AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse,
-    SuggestResponse, WhoAmIResponse, ClientRequestBroadcastResponse
+    SuggestResponse, WhoAmIResponse, ClientRequestBroadcastResponse, ProofResponse
 };
 
 use crate::msg::ExecuteMsg;
@@ -71,7 +71,7 @@ pub fn handle_client_request(
     })?;
 
     let msgs: Vec<IbcMsg> =
-        create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets, false)?;
+        create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets)?;
 
     let self_exec_msg:SubMsg<> = SubMsg::reply_on_error(msgs[0].clone(), SELF_EXEC_ID_DEBUG);
 
@@ -96,32 +96,35 @@ pub fn view_change(deps: DepsMut, timeout: IbcTimeout) -> Result<Vec<IbcMsg>, Co
         view: state.view,
         chain_id: state.chain_id,
     }];
-    // Contruct messages to be broadcasted
+    // Contruct Request messages to be broadcasted
     let mut msgs: Vec<IbcMsg> =
-        create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets, false)?;
+        create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets)?;
 
-    // Upon highest_request[primary] = view
-    let prim_highest = HIGHEST_REQ.load(deps.storage, state.primary)?;
+    if state.chain_id != state.primary {
+        // Upon highest_request[primary] = view
+        let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
+        if prim_highest_req == state.view {
+            // Contruct Suggest message to delivery to primary
+            let packet = PacketMsg::Suggest {
+                chain_id: state.chain_id,
+                view: state.view,
+                key2: state.key2,
+                key2_val: state.key2_val.clone(),
+                prev_key2: state.prev_key2,
+                key3: state.key3,
+                key3_val: state.key3_val.clone(),
+            };
+            let channel_id = CHANNELS.load(deps.storage, state.primary)?;
+            msgs.push(IbcMsg::SendPacket {
+                channel_id,
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            });
 
-    if state.chain_id != state.primary && prim_highest == state.view {
-        let packet_to_broadcast = vec![PacketMsg::Suggest {
-            chain_id: state.chain_id,
-            view: state.view,
-            key2: state.key2,
-            key2_val: state.key2_val,
-            prev_key2: state.prev_key2,
-            key3: state.key3,
-            key3_val: state.key3_val,
-        }];
-        let suggest_msg = create_broadcast_msgs(
-            timeout.clone(),
-            vec![CHANNELS.load(deps.storage, state.primary)?],
-            packet_to_broadcast,
-            true,
-        )?;
-        msgs.extend(suggest_msg);
+            // msgs.extend(suggest_msg);
+        }
+    
     }
-
     let proof_packet = PacketMsg::Proof {
         key1: state.key1,
         key1_val: state.key1_val,
@@ -169,20 +172,19 @@ pub fn create_broadcast_msgs(
     timeout: IbcTimeout,
     channel_ids: Vec<String>,
     packets_to_broadcast: Vec<PacketMsg>,
-    is_to_primary: bool,
 ) -> Result<Vec<IbcMsg>, ContractError> {
     let mut msgs: Vec<IbcMsg> = Vec::new();
-    if is_to_primary {
-        let channel_id = &channel_ids[0];
-        for packet in packets_to_broadcast {
-            let msg = IbcMsg::SendPacket {
-                channel_id: channel_id.clone(),
-                data: to_binary(&packet)?,
-                timeout: timeout.clone(),
-            };
-            msgs.push(msg);
-        }
-    } else {
+    // if is_to_primary {
+    //     let channel_id = &channel_ids[0];
+    //     for packet in packets_to_broadcast {
+    //         let msg = IbcMsg::SendPacket {
+    //             channel_id: channel_id.clone(),
+    //             data: to_binary(&packet)?,
+    //             timeout: timeout.clone(),
+    //         };
+    //         msgs.push(msg);
+    //     }
+    // } else {
         for packet in packets_to_broadcast {
             for channel_id in &channel_ids {
                 let msg = IbcMsg::SendPacket {
@@ -193,7 +195,7 @@ pub fn create_broadcast_msgs(
                 msgs.push(msg);
             }
         }
-    }
+    // }
     Ok(msgs)
 }
 
@@ -267,6 +269,8 @@ pub fn ibc_channel_connect(
     // Keep a record of connected channels
     let mut state = STATE.load(deps.storage)?;
     state.channel_ids.push(channel_id.to_string());
+    // increment the total no of chains
+    state.n += 1;
     STATE.save(deps.storage, &state)?;
     // let dst_port =  &channel.counterparty_endpoint.port_id;
 
@@ -385,7 +389,6 @@ pub fn ibc_packet_receive(
             } => receive_suggest(
                 deps,
                 env,
-                dest_channel_id,
                 chain_id,
                 view,
                 key2,
@@ -395,11 +398,11 @@ pub fn ibc_packet_receive(
                 key3_val,
             ),
             PacketMsg::Proof {
-                key1: _,
-                key1_val: _,
-                prev_key1: _,
-                view: _,
-            } => todo!(),
+                key1,
+                key1_val,
+                prev_key1,
+                view,
+            } => receive_proof(deps, key1, key1_val, prev_key1, view),
             PacketMsg::Echo { val: _, view: _ } => todo!(),
             PacketMsg::ClientRequestBroadcast { value } => {
                 CLIENT_REQ_COUNT.update(deps.storage, "DEBUG-1".to_string(), |mut state| -> StdResult<_> {
@@ -463,11 +466,32 @@ pub fn receive_client_request_broadcast(deps: DepsMut,
 }
 
 
+pub fn receive_proof(
+    deps: DepsMut,
+    _k1: u32,
+    _key1_val: String,
+    _pk1: i32,
+    _view: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let mut state = STATE.load(deps.storage)?;
+    state.current_tx_id += 10;
+    STATE.save(deps.storage, &state)?;
+    // if view > k1 && k1 as i32 > pk1 && RECEIVED_PROOF.load(deps.storage, k)? {
+        // Get the chain_id of the sender
+        // let chain_id = CHANNELS.range(&deps.storage, min, max, order)
+
+    // } 
+    let response = ProofResponse {};
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
+    Ok(IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_proof"))
+}
+
 pub fn receive_suggest(
     deps: DepsMut,
     env: Env,
-    _dest_channel_id: String,
-    chain_id: u32,
+    from_chain_id: u32,
     view: u32,
     key2: u32,
     key2_val: String,
@@ -480,13 +504,12 @@ pub fn receive_suggest(
 
     // When I'm the primary
     if state.primary == state.chain_id { 
-        //TESTING
-        state.suggestions.push((u32::MAX, "TESTING".to_string()));
-        STATE.save(deps.storage, &state)?;
+        //// TESTING ////
+        // state.suggestions.push((u32::MAX, "TESTING".to_string()));
 
         // upon receiving the first suggest message from a chain
-        if !RECEIVED_SUGGEST.load(deps.storage, chain_id)? {
-            RECEIVED_SUGGEST.save(deps.storage, chain_id, &true)?;
+        if !RECEIVED_SUGGEST.load(deps.storage, from_chain_id)? {
+            RECEIVED_SUGGEST.save(deps.storage, from_chain_id, &true)?;
             // Check if the following conditions hold
             if prev_key2 < key2 as i32 && key2 < view {
                 state.key2_proofs.push((key2, key2_val, prev_key2));
@@ -499,7 +522,6 @@ pub fn receive_suggest(
                     state.suggestions.push((key3, key3_val.clone()));
                 }
             }
-            STATE.save(deps.storage, &state)?;
 
             // Check if |suggestions| >= n - f
             if state.suggestions.len() >= ((NODE_COUNT - FAILURE_COUNT) as usize) {
@@ -520,6 +542,7 @@ pub fn receive_suggest(
             }
             
         }
+        STATE.save(deps.storage, &state)?;
     }
 
     let response = SuggestResponse {};
@@ -527,7 +550,7 @@ pub fn receive_suggest(
     let res = IbcReceiveResponse::new()
         .set_ack(acknowledgement)
         .add_attribute("action", "receive_suggest")
-        .add_attribute("chain_id", chain_id.to_string());
+        .add_attribute("suggest_sender_chain_id", from_chain_id.to_string());
     if !msgs.is_empty() {
         Ok(res.add_messages(msgs))
     } else {
@@ -705,8 +728,8 @@ fn receive_who_am_i(
     CHANNELS.update(deps.storage, chain_id, action)?;
 
     // initialize the highest_request of that chain
-    let action = |_| -> StdResult<u32> { Ok(0) };
-    HIGHEST_REQ.update(deps.storage, chain_id, action)?;
+    // let action = |_| -> StdResult<u32> { Ok(0) };
+    // HIGHEST_REQ.update(deps.storage, chain_id, action)?;
     // initialize the highest_request of that chain
     HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
 

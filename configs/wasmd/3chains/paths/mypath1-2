@@ -1,12 +1,20 @@
 {
     "src": {
         "chain-id": "ibc-1",
+<<<<<<< HEAD
         "order": "ordered",
+=======
+        "order": "unordered",
+>>>>>>> main
         "version": "simplestoragev1"
     },
     "dst": {
         "chain-id": "ibc-2",
+<<<<<<< HEAD
         "order": "ordered",
+=======
+        "order": "unordered",
+>>>>>>> main
         "version": "simplestoragev1"
     },
     "src-channel-filter": {

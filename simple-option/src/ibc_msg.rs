@@ -78,6 +78,9 @@ pub struct RequestResponse {
 pub struct SuggestResponse {
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ProofResponse {
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ClientRequestBroadcastResponse {
