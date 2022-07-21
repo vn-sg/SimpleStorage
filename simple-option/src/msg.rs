@@ -13,7 +13,9 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Set { key: String, value: u32 },
     Get { key: String },
-    Input { value: String }
+    Input { value: String },
+    InputTest { val: String, val2: u32},
+    ClientRequest { value: String},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,7 +27,8 @@ pub enum QueryMsg {
     GetTx { tx_id: String },
     GetChannels { },
     GetTest { },
-    GetHighestReq { }
+    GetHighestReq { },
+    GetClientReqCount {},
 }
 
 // We define a custom struct for each query response
@@ -49,3 +52,7 @@ pub struct SuggestionsResponse {
     pub suggestions: Vec<(u32, u32)>
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClientReqResponse {
+    pub client_req_count: Vec<(String,u32)>
+}

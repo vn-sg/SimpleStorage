@@ -48,10 +48,10 @@ chainid3=ibc-3
 
 echo "Generating WASMD configurations..."
 mkdir -p $WASMD_DATA && cd $WASMD_DATA && cd ../
-./one-chain wasmd $chainid0 ./data 26657 26656 6060 9090
-./one-chain wasmd $chainid1 ./data 26557 26556 6061 9091
-./one-chain wasmd $chainid2 ./data 25557 25556 6062 9092
-./one-chain wasmd $chainid3 ./data 24557 24556 6063 9093
+./one-chain wasmd $chainid0 ./data 26555 26655 6060 9090
+./one-chain wasmd $chainid1 ./data 26556 26656 6061 9091
+./one-chain wasmd $chainid2 ./data 26557 25657 6062 9092
+./one-chain wasmd $chainid3 ./data 26558 26658 6063 9093
 
 [ -f $WASMD_DATA/$chainid0.log ] && echo "$chainid0 initialized. Watch file $WASMD_DATA/$chainid0.log to see its execution."
 [ -f $WASMD_DATA/$chainid1.log ] && echo "$chainid1 initialized. Watch file $WASMD_DATA/$chainid1.log to see its execution."
@@ -75,20 +75,20 @@ rly config add-paths configs/wasmd/4chains/paths
 
 set +x
 
-########     DELETE old keys     ########
+########     DELETE old keys     ########	
 
-echo "Deleting old wasmd keys..."
-wasmd keys delete ibc-0 -y &> /dev/null || true #The `.. | true` ensures execution continues even if key to be deleted non-exist
-wasmd keys delete ibc-1 -y &> /dev/null || true
-wasmd keys delete ibc-2 -y &> /dev/null || true
-wasmd keys delete ibc-3 -y &> /dev/null || true
+echo "Deleting old wasmd keys..."	
+wasmd keys delete ibc-0 -y &> /dev/null || true #The `.. | true` ensures execution continues even if key to be deleted non-exist	
+wasmd keys delete ibc-1 -y &> /dev/null || true	
+wasmd keys delete ibc-2 -y &> /dev/null || true	
+wasmd keys delete ibc-3 -y &> /dev/null || true	
 
-set +x
+set +x	
 
-########     ADD new keys     ########
+########     ADD new keys     ########	
 
-echo "Adding new wasmd keys..."
-cat $WASMD_DATA/ibc-0/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-0 --recover
-cat $WASMD_DATA/ibc-1/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-1 --recover
-cat $WASMD_DATA/ibc-2/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-2 --recover
-cat $WASMD_DATA/ibc-3/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-3 --recover
+echo "Adding new wasmd keys..."	
+cat $WASMD_DATA/ibc-0/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-0 --recover	
+cat $WASMD_DATA/ibc-1/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-1 --recover	
+cat $WASMD_DATA/ibc-2/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-2 --recover	
+cat $WASMD_DATA/ibc-3/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-3 --recover 	

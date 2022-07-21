@@ -5,6 +5,9 @@ use cw_storage_plus::{Item, Map};
 
 use crate::msg::ExecuteMsg;
 
+pub const NODE_COUNT: u32 = 4;
+pub const FAILURE_COUNT: u32 = 1;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub role: String,
@@ -46,7 +49,6 @@ pub struct Test {
     pub dest_chan_id: String,
 }
 
-
 pub const STATE: Item<State> = Item::new("state");
 
 pub const VARS: Map<&str, String> = Map::new("vars");
@@ -60,4 +62,13 @@ pub const RECEIVED_PROOF: Map<u32, bool> = Map::new("received_proof");
 // pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
 
+// <value, count>> can be changed to ID later on
+pub const CLIENT_REQ_COUNT: Map<String, u32> = Map::new("request_id_map");
+
+// Received from this channel yet? prevent bad guys from trigerring dual vote
+pub const CLIENT_REQ_CHANNEL_REQ_DEDUPE: Map<String, bool> = Map::new("CLIENT_REQ_IS_BROADCASTED");
+pub const CLIENT_REQ_SENT: Item<bool> = Item::new("CLIENT_REQ_SENT");
+
+
+pub const DEBUG: Map<u32, String> = Map::new("debug");
 

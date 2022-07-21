@@ -1,19 +1,25 @@
+use std::thread::current;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcTimeout, MessageInfo, Order, Response, StdResult,
+    Reply, SubMsgResult
 };
 
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::ibc::{view_change, PACKET_LIFETIME};
-use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, SuggestionsResponse};
-use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF};
+use crate::ibc::{view_change, PACKET_LIFETIME, handle_client_request};
+use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, SuggestionsResponse, ClientReqResponse};
+use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, CLIENT_REQ_SENT, NODE_COUNT, CLIENT_REQ_COUNT, RECEIVED_PROOF};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const SELF_EXEC_ID_DEBUG: u64 = 1000;
+
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -51,6 +57,9 @@ pub fn instantiate(
     };
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+
+    CLIENT_REQ_SENT.save(deps.storage, &false)?;
 
     // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
     // initialize the highest_request of oneself
@@ -108,7 +117,7 @@ pub fn handle_execute_input(
     state.key2_proofs = Vec::new();
 
     // Set the primary to be (view mod n) + 1
-    state.primary = state.view % 4 + 1;
+    state.primary = state.view % NODE_COUNT + 1;
 
     ////    process_messages() part     ////
     // initialize proofs to an empty set
@@ -160,6 +169,13 @@ pub fn execute(
             Ok(res)
         },
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
+        ExecuteMsg::InputTest { val, val2 } => {
+            handle_execute_input(deps, env, val)
+        },
+        ExecuteMsg::ClientRequest { value } => {
+            let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
+            handle_client_request(deps, env, value, timeout.clone())
+        }
     }
 
     // let channel_ids = state.channel_ids.clone();
@@ -188,6 +204,7 @@ pub fn execute(
     // broadcast_response(timeout.clone(), channel_ids, packet, "broadcast_propose".to_string())
 }
 
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -197,8 +214,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
         QueryMsg::GetHighestReq { } => to_binary(&query_highest_request(deps)?),
+        QueryMsg::GetClientReqCount {  } => to_binary(&query_client_req(deps)?),
     }
 }
+
+fn query_client_req(deps: Deps) -> StdResult<ClientReqResponse> {
+    let ClientReqCounts: StdResult<Vec<_>> = CLIENT_REQ_COUNT
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    // let channels = channels?;
+    Ok(ClientReqResponse {
+        client_req_count: ClientReqCounts?,
+    })
+}
+
 
 fn query_highest_request(deps: Deps) -> StdResult<SuggestionsResponse> {
     let req: StdResult<Vec<_>> = HIGHEST_REQ.range(deps.storage, None, None, Order::Ascending).collect();
@@ -247,6 +276,23 @@ fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
         None => Ok(ValueResponse::KeyNotFound {}),
     }
 }
+
+
+#[entry_point]
+pub fn reply(deps: DepsMut, _env: Env, reply: Reply) -> StdResult<Response> {
+    match (reply.id, reply.result) {
+        (SELF_EXEC_ID_DEBUG, SubMsgResult::Err(err)) => {
+            CLIENT_REQ_COUNT.update(deps.storage, err.into(),|mut state| -> StdResult<_> {
+                Ok(601)
+            })?;        
+            Ok(Response::new())
+        }    
+        _ => {    
+            Ok(Response::new())        
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
