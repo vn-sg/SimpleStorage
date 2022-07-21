@@ -5,30 +5,94 @@ use cosmwasm_std::{
 use cosmwasm_std::{
     IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg,
     IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
+    SubMsg
 };
 
 use crate::ibc_msg::{
     AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse,
-    SuggestResponse, WhoAmIResponse,
+    SuggestResponse, WhoAmIResponse, ClientRequestBroadcastResponse
 };
+
 use crate::msg::ExecuteMsg;
 use crate::state::{
-    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS,
+    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, NODE_COUNT, FAILURE_COUNT, CLIENT_REQ_COUNT,
+    DEBUG
 };
 
 use crate::ContractError;
-
+use crate::contract::handle_execute_input;
 pub const IBC_APP_VERSION: &str = "simple_storage";
 
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
+const SELF_EXEC_ID_DEBUG: u64 = 100;
+
+
+pub fn handle_client_request(
+    deps: DepsMut,
+    _env: Env,
+    input: String,
+    timeout: IbcTimeout    
+) -> Result<Response, ContractError> {
+
+    // load the state
+    let state = STATE.load(deps.storage)?;
+
+    let mut currentTot = 1;
+
+    // Always broadcast here...
+    let packets = vec![PacketMsg::ClientRequestBroadcast{
+        value: input.clone()
+    }];
+
+    CLIENT_REQ_COUNT.update(deps.storage, input,|mut state| -> StdResult<_> {
+        match state {
+            Some(count) => {
+                currentTot = count + 1;
+                Ok(currentTot)
+            }
+            None => {
+                Ok(currentTot)
+            }
+        }
+    })?;
+
+
+    CLIENT_REQ_COUNT.update(deps.storage, "handle_client_request".into(),|mut state| -> StdResult<_> {
+        match state {
+            Some(count) => {
+                currentTot = count + 1;
+                Ok(512)
+            }
+            None => {
+                Ok(512)
+            }
+        }
+    })?;
+
+    let msgs: Vec<IbcMsg> =
+        create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets, false)?;
+
+    let self_exec_msg:SubMsg<> = SubMsg::reply_on_error(msgs[0].clone(), SELF_EXEC_ID_DEBUG);
+
+    
+    let ibc_sub_msgs: Vec<SubMsg<>> = msgs.iter().map( |ibcMsg| {
+        SubMsg::reply_on_error(ibcMsg.clone(), SELF_EXEC_ID_DEBUG)
+    }).collect();
+
+    let res = Response::new()
+                        .add_submessages(ibc_sub_msgs)
+                        .add_attribute("action", "handle_client_request");
+    return Ok(res)
+
+}
 
 pub fn view_change(deps: DepsMut, timeout: IbcTimeout) -> Result<Vec<IbcMsg>, ContractError> {
     // load the state
     let state = STATE.load(deps.storage)?;
 
     // Add Request message to packets_to_be_broadcasted
-    let packets = vec![PacketMsg::Request {
+    let packets = vec![PacketMsg::ViewRequest {
         view: state.view,
         chain_id: state.chain_id,
     }];
@@ -307,7 +371,7 @@ pub fn ibc_packet_receive(
             ),
             PacketMsg::WhoAmI { chain_id } => receive_who_am_i(deps, dest_channel_id, chain_id),
             PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
-            PacketMsg::Request { view, chain_id } => {
+            PacketMsg::ViewRequest { view, chain_id } => {
                 receive_request(deps, dest_channel_id, view, chain_id)
             }
             PacketMsg::Suggest {
@@ -337,6 +401,13 @@ pub fn ibc_packet_receive(
                 view: _,
             } => todo!(),
             PacketMsg::Echo { val: _, view: _ } => todo!(),
+            PacketMsg::ClientRequestBroadcast { value } => {
+                CLIENT_REQ_COUNT.update(deps.storage, "DEBUG-1".to_string(), |mut state| -> StdResult<_> {
+                    Ok(200)
+                })?;
+                Ok(IbcReceiveResponse::new())
+               //  receive_request(deps, dest_channel_id, 1, 1)
+            },
         }
     })()
     .or_else(|e| {
@@ -348,6 +419,49 @@ pub fn ibc_packet_receive(
             .add_event(Event::new("ibc").add_attribute("packet", "receive")))
     })
 }
+
+
+pub fn receive_client_request_broadcast(deps: DepsMut,
+    env: Env,
+    val: String
+    ) -> StdResult<IbcReceiveResponse> {
+
+    let mut currentTot = 1;
+    CLIENT_REQ_COUNT.update(deps.storage, val.clone(),|mut state| -> StdResult<_> {
+        match state {
+            Some(count) => {
+                currentTot = count + 1;
+                Ok(currentTot)
+            }
+            None => {
+                Ok(currentTot)
+            }
+        }
+    })?;
+
+
+    let acknowledgement = to_binary(&ClientRequestBroadcastResponse{})?;
+    let mut res = IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_client_request_broadcast");
+
+    if currentTot == (NODE_COUNT-FAILURE_COUNT) {
+        let result = handle_execute_input(deps, env, val.clone());
+        match result {
+            Ok(_) => {
+                return Ok(res);    
+            }
+            Err(_) => {
+                res.add_attribute("error", "handle_execute_input in broadcast handler error");
+                return Err(StdError::GenericErr{msg: "handle_execute_input in broadcast handler".to_string()});
+            }
+        }
+    } else {
+        return Ok(res);         
+    }
+
+}
+
 
 pub fn receive_suggest(
     deps: DepsMut,
@@ -388,7 +502,7 @@ pub fn receive_suggest(
             STATE.save(deps.storage, &state)?;
 
             // Check if |suggestions| >= n - f
-            if state.suggestions.len() >= 4 - 1 {
+            if state.suggestions.len() >= ((NODE_COUNT - FAILURE_COUNT) as usize) {
                 let timeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
                 // Retrive the entry with the largest k
                 let (k, v) = state.suggestions.iter().max().unwrap();
@@ -430,7 +544,7 @@ fn accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool 
             supporting += 1;
         }
     }
-    if supporting >= 1 + 1 {
+    if supporting >= FAILURE_COUNT + 1 {
         return true;
     }
     false
@@ -469,7 +583,7 @@ fn open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool>
             supporting += 1;
         }
     }
-    if supporting >= 1 + 1 {
+    if supporting >= FAILURE_COUNT + 1 {
         Ok(true)
     } else {
         Ok(false)
@@ -536,6 +650,8 @@ pub fn receive_commit(
         ExecuteMsg::Set { key, value } => try_set(deps, key, value.to_string(), tx_id),
         ExecuteMsg::Get { key } => try_get(deps, key, tx_id),
         ExecuteMsg::Input { value: _ } => todo!(),
+        ExecuteMsg::InputTest { val: _, val2:_ } => todo!(),
+        ExecuteMsg::ClientRequest { value: _ } => todo!(),
     }
 }
 pub fn try_get(deps: DepsMut, key: String, tx_id: u32) -> StdResult<IbcReceiveResponse> {
@@ -622,7 +738,7 @@ pub fn ibc_packet_ack(
         }
         PacketMsg::Commit { msg: _, tx_id: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::WhoAmI { chain_id: _ } => Ok(IbcBasicResponse::new()),
-        PacketMsg::Request {
+        PacketMsg::ViewRequest {
             chain_id: _,
             view: _,
         } => Ok(IbcBasicResponse::new()),
@@ -641,7 +757,10 @@ pub fn ibc_packet_ack(
             prev_key1: _,
             view: _,
         } => todo!(),
-        PacketMsg::Echo { val: _, view: _ } => todo!()
+        PacketMsg::Echo { val: _, view: _ } => todo!(),
+        PacketMsg::ClientRequestBroadcast { value } => {
+            Ok(IbcBasicResponse::new())
+        }
     }
 }
 

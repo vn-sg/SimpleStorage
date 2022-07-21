@@ -24,7 +24,10 @@ pub enum PacketMsg {
         tx_id: u32
     },
     WhoAmI { chain_id: u32 },
-    Request { 
+    ClientRequestBroadcast {
+        value: String,
+    },
+    ViewRequest { 
         view: u32, 
         chain_id: u32 
     },
@@ -73,4 +76,10 @@ pub struct RequestResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SuggestResponse {
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClientRequestBroadcastResponse {
+
 }

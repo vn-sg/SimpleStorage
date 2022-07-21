@@ -5,6 +5,9 @@ use cw_storage_plus::{Item, Map};
 
 use crate::msg::ExecuteMsg;
 
+pub const NODE_COUNT: u32 = 4;
+pub const FAILURE_COUNT: u32 = 1;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub role: String,
@@ -45,14 +48,6 @@ pub struct Test {
     pub dest_chan_id: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SetRequest {
-    pub id: String,
-    pub key: String,
-    pub value: String,
-}
-
-
 pub const STATE: Item<State> = Item::new("state");
 
 pub const VARS: Map<&str, String> = Map::new("vars");
@@ -64,9 +59,9 @@ pub const HIGHEST_ABORT: Map<u32, u32> = Map::new("highest_abort");
 pub const RECEIVED_SUGGEST: Map<u32, bool> = Map::new("received_suggest");
 // pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
-pub const REQUEST_ID_MAP: Map<String, SetRequest> = Map::new("request_id_map");
-pub const REQUEST_COUNT_FROM_SC: Map<String, u32> =  Map::new("request_count_sc");
-pub const REQUEST_COUNT_FROM_CLIENT: Map<String, u32> =  Map::new("request_count_client");
+// <Value, Count> can be changed to ID later on
+pub const CLIENT_REQ_COUNT: Map<String, u32> = Map::new("request_id_map");
+pub const CLIENT_TOTAL_COUNT: Item<u32> = Item::new("TOTAL_COUNT");
 
 pub const DEBUG: Map<u32, String> = Map::new("debug");
 
