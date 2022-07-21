@@ -74,3 +74,21 @@ echo "Key $(rly keys restore ibc-3 testkey "$SEED3") imported from ibc-3 to rela
 rly config add-paths configs/wasmd/4chains/paths
 
 set +x
+
+########     DELETE old keys     ########	
+
+echo "Deleting old wasmd keys..."	
+wasmd keys delete ibc-0 -y &> /dev/null || true #The `.. | true` ensures execution continues even if key to be deleted non-exist	
+wasmd keys delete ibc-1 -y &> /dev/null || true	
+wasmd keys delete ibc-2 -y &> /dev/null || true	
+wasmd keys delete ibc-3 -y &> /dev/null || true	
+
+set +x	
+
+########     ADD new keys     ########	
+
+echo "Adding new wasmd keys..."	
+cat $WASMD_DATA/ibc-0/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-0 --recover	
+cat $WASMD_DATA/ibc-1/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-1 --recover	
+cat $WASMD_DATA/ibc-2/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-2 --recover	
+cat $WASMD_DATA/ibc-3/key_seed.json | jq .mnemonic -r | wasmd keys add ibc-3 --recover 	
