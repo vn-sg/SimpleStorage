@@ -1,17 +1,20 @@
+use std::convert::TryInto;
+
 use cosmwasm_std::{
     entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, IbcTimeout, Order, Response,
-    StdError, StdResult,
+    StdError, StdResult, SubMsg,
 };
 use cosmwasm_std::{
     IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg,
     IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
 };
 
+use crate::contract::{REQUEST_REPLY_ID, SUGGEST_REPLY_ID, PROPOSE_REPLY_ID};
 use crate::ibc_msg::{
     AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse,
-    SuggestResponse, WhoAmIResponse, ProofResponse,
+    SuggestResponse, WhoAmIResponse, ProofResponse, MsgQueueResponse,
 };
-use crate::msg::ExecuteMsg;
+use crate::msg::{ExecuteMsg};
 use crate::state::{
     CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS,
 };
@@ -22,55 +25,143 @@ pub const IBC_APP_VERSION: &str = "simple_storage";
 
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
+/// Setting up constant
 
-pub fn view_change(deps: DepsMut, timeout: IbcTimeout) -> Result<Vec<IbcMsg>, ContractError> {
-    // load the state
-    let state = STATE.load(deps.storage)?;
 
-    // Add Request message to packets_to_be_broadcasted
-    let packets = vec![PacketMsg::Request {
-        view: state.view,
-        chain_id: state.chain_id,
-    }];
-    // Contruct Request messages to be broadcasted
-    let mut msgs: Vec<IbcMsg> =
-        create_broadcast_msgs(timeout.clone(), state.channel_ids.clone(), packets)?;
+pub fn view_change(deps: DepsMut, timeout: IbcTimeout) -> Result<Response, ContractError> {
 
-    if state.chain_id != state.primary {
-        // Upon highest_request[primary] = view
-        let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
-        if prim_highest_req == state.view {
-            // Contruct Suggest message to delivery to primary
-            let packet = PacketMsg::Suggest {
-                chain_id: state.chain_id,
-                view: state.view,
-                key2: state.key2,
-                key2_val: state.key2_val.clone(),
-                prev_key2: state.prev_key2,
-                key3: state.key3,
-                key3_val: state.key3_val.clone(),
-            };
-            let channel_id = CHANNELS.load(deps.storage, state.primary)?;
-            msgs.push(IbcMsg::SendPacket {
-                channel_id,
-                data: to_binary(&packet)?,
-                timeout: timeout.clone(),
-            });
+    let msgs = create_queue_view_change(&deps, timeout)?;
+    Ok(Response::new()
+        .add_messages(msgs))
+
+    // Contruct Request messages to be broadcasted ----latest1
+    // let res = broadcast_submsgs("broadcast_request".to_string(), timeout.clone(), state.channel_ids.clone(), request_packet)?;
+    // return Ok(res);
+
+    // Contruct Request messages to be broadcasted and add to Response ----latest2
+    // let mut res = add_broadcast_submsgs(Response::new(), timeout.clone(), state.channel_ids[0..1].to_vec(), request_packet.clone(), REQUEST_REPLY_ID)?;
+    // if state.channel_ids.len() > 1 {
+    //     res = add_broadcast_msgs(res, timeout, state.channel_ids[1..].to_vec(), request_packet)?;
+    // }
+    
+    // Ok(res.add_attribute("action", "broadcast_request".to_string()))
+
+    // if state.chain_id != state.primary {
+    //     // Upon highest_request[primary] = view
+    //     let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
+    //     if prim_highest_req == state.view {
+    //         // Contruct Suggest message to delivery to primary
+    //         let packet = PacketMsg::Suggest {
+    //             chain_id: state.chain_id,
+    //             view: state.view,
+    //             key2: state.key2,
+    //             key2_val: state.key2_val.clone(),
+    //             prev_key2: state.prev_key2,
+    //             key3: state.key3,
+    //             key3_val: state.key3_val.clone(),
+    //         };
+    //         let channel_id = CHANNELS.load(deps.storage, state.primary)?;
+    //         res = res.add_message(IbcMsg::SendPacket {
+    //                 channel_id,
+    //                 data: to_binary(&packet)?,
+    //                 timeout: timeout.clone(),
+    //             });
+            // msgs.push(IbcMsg::SendPacket {
+            //     channel_id,
+            //     data: to_binary(&packet)?,
+            //     timeout: timeout.clone(),
+            // });
 
             // msgs.extend(suggest_msg);
-        }
+        // }
     
-    }
+    // }
+
+    // let all_msgs = send_all_upon_join(&deps, timeout, msgs, proof_packet)?;
+    // TEST.save(deps.storage, msgs.is_empty().to_string(), &msgs);
+    // Ok(res)
+}
+
+pub fn create_queue_view_change(
+    deps: &DepsMut,
+    timeout: IbcTimeout,
+) -> Result<Vec<IbcMsg>, ContractError> {
+    // load the state
+    let state = STATE.load(deps.storage)?;
+    // Add Request message to packets_to_be_broadcasted
+    let request_packet = PacketMsg::Request {
+        view: state.view,
+        chain_id: state.chain_id,
+    };
+
+    // Contruct Request messages to be broadcasted
+    
+    // let queue =  PacketMsg::MsgQueue { q: vec![request_packet] };
+    // let msg_queue = create_msgs_view_change(&deps, timeout.clone(), queue)?;
+
+    let channels = get_id_channel_pair(deps)?;
     let proof_packet = PacketMsg::Proof {
         key1: state.key1,
         key1_val: state.key1_val,
         prev_key1: state.prev_key1,
         view: state.view,
     };
-    let all_msgs = send_all_upon_join(&deps, timeout, msgs, proof_packet)?;
+    let mut msgs: Vec<IbcMsg> = Vec::new();
 
-    Ok(all_msgs)
+    for (chain_id, channel_id) in &channels {
+        // construct the msg queue to send
+        let mut queue = vec![request_packet.clone()];
+        let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+        // If primary, check if satisfiy condition
+        if chain_id.clone() == state.primary && state.chain_id != state.primary {
+            // Upon highest_request[primary] = view
+            if highest_request == state.view {
+                // Contruct Suggest message to delivery to primary
+                let packet = PacketMsg::Suggest {
+                    chain_id: state.chain_id,
+                    view: state.view,
+                    key2: state.key2,
+                    key2_val: state.key2_val.clone(),
+                    prev_key2: state.prev_key2,
+                    key3: state.key3,
+                    key3_val: state.key3_val.clone(),
+                };
+                queue.push(packet);
+            }
+        }
+        // send_all_upon_join(proof)
+        if highest_request == state.view {
+            queue.push(proof_packet.clone());
+        }
+
+        let msg = IbcMsg::SendPacket {
+            channel_id: channel_id.clone(),
+            data: to_binary(&PacketMsg::MsgQueue { q: queue })?,
+            timeout: timeout.clone(),
+        };
+        msgs.push(msg);
+    }
+
+    
+    // // construct Response and put Suggest message in the query on the fly
+    // return Ok(Response::new()
+    // .add_submessage(submsg)
+    // .add_attribute("action", "send_suggest2primary".to_string()))
+    // Ok(msgs)
+
+    Ok(msgs)
 }
+
+// pub fn create_msgs_view_change(
+//     deps: &DepsMut,
+//     timeout: IbcTimeout,
+//     packet_to_broadcast: PacketMsg,
+// ) -> Result<Vec<IbcMsg>, ContractError> {
+
+    
+// }
+
+// }
 
 pub fn get_id_channel_pair(deps: &DepsMut) -> StdResult<Vec<(u32, String)>> {
     let channels: StdResult<Vec<_>> = CHANNELS
@@ -79,15 +170,33 @@ pub fn get_id_channel_pair(deps: &DepsMut) -> StdResult<Vec<(u32, String)>> {
     channels
 }
 
-pub fn send_all_upon_join(
+pub fn send_all_upon_join_queue(
+    deps: &DepsMut,
+    packet_to_broadcast: PacketMsg,
+    queue: &mut Vec<Vec<PacketMsg>>
+) -> Result<(), ContractError> {
+    let channel_ids = get_id_channel_pair(&deps)?;
+    let state = STATE.load(deps.storage)?;
+    for (chain_id, _channel_id) in &channel_ids {
+        let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+        if highest_request == state.view {
+            queue[*chain_id as usize].push(packet_to_broadcast.clone());
+
+        }
+    }
+    Ok(())
+
+}
+
+pub fn send_all_upon_join_sub(
     deps: &DepsMut,
     timeout: IbcTimeout,
-    msgs_so_far: Vec<IbcMsg>,
+    mut res: Response,
     packet_to_broadcast: PacketMsg,
-) -> Result<Vec<IbcMsg>, ContractError> {
+    reply_id: u64
+) -> Result<Response, ContractError> {
     let channel_ids = get_id_channel_pair(&deps)?;
-
-    let mut msgs = msgs_so_far;
+    // let mut res = res;
     let state = STATE.load(deps.storage)?;
     for (chain_id, channel_id) in &channel_ids {
         let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
@@ -97,42 +206,99 @@ pub fn send_all_upon_join(
                 data: to_binary(&packet_to_broadcast)?,
                 timeout: timeout.clone(),
             };
-            msgs.push(msg);
+            let submsg = SubMsg::reply_on_success(msg, reply_id);
+            res = res.add_submessage(submsg);
+        }
+    }
+
+    Ok(res)
+}
+
+pub fn send_all_upon_join(
+    deps: &DepsMut,
+    timeout: IbcTimeout,
+    packet_to_broadcast: PacketMsg,
+) -> Result<Vec<SubMsg>, ContractError> {
+    let channel_ids = get_id_channel_pair(&deps)?;
+
+    let mut msgs = Vec::new();
+    let state = STATE.load(deps.storage)?;
+    for (chain_id, channel_id) in &channel_ids {
+        let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+        if highest_request == state.view {
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id.clone(),
+                data: to_binary(&packet_to_broadcast)?,
+                timeout: timeout.clone(),
+            };
+            let submsg: SubMsg = SubMsg::reply_on_success(msg, PROPOSE_REPLY_ID);
+            msgs.push(submsg);
         }
     }
 
     Ok(msgs)
 }
 
-pub fn create_broadcast_msgs(
+pub fn broadcast_submsgs(
+    attrib: String,
     timeout: IbcTimeout,
     channel_ids: Vec<String>,
-    packets_to_broadcast: Vec<PacketMsg>,
-) -> Result<Vec<IbcMsg>, ContractError> {
-    let mut msgs: Vec<IbcMsg> = Vec::new();
-    // if is_to_primary {
-    //     let channel_id = &channel_ids[0];
-    //     for packet in packets_to_broadcast {
-    //         let msg = IbcMsg::SendPacket {
-    //             channel_id: channel_id.clone(),
-    //             data: to_binary(&packet)?,
-    //             timeout: timeout.clone(),
-    //         };
-    //         msgs.push(msg);
-    //     }
-    // } else {
-        for packet in packets_to_broadcast {
-            for channel_id in &channel_ids {
-                let msg = IbcMsg::SendPacket {
-                    channel_id: channel_id.clone(),
-                    data: to_binary(&packet)?,
-                    timeout: timeout.clone(),
-                };
-                msgs.push(msg);
-            }
+    packet_to_broadcast: PacketMsg,
+) -> Result<Response, ContractError> {
+    let mut msgs = Vec::new();
+    for channel_id in channel_ids {
+        let msg = IbcMsg::SendPacket {
+            channel_id: channel_id.clone(),
+            data: to_binary(&packet_to_broadcast)?,
+            timeout: timeout.clone()
+        };
+        let submsg = SubMsg::reply_on_success(msg, REQUEST_REPLY_ID);
+        // let submsg = msg;
+        msgs.push(submsg);
+    }
+    let res = Response::new()
+        .add_submessages(msgs)
+        .add_attribute("action", attrib);
+    Ok(res)
+}
+
+pub fn add_broadcast_submsgs(
+    mut res: Response,
+    timeout: IbcTimeout,
+    channel_ids: Vec<String>,
+    packet_to_broadcast: PacketMsg,
+    submsg_id: u64
+) -> Result<Response, ContractError> {
+        for channel_id in channel_ids {
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id.clone(),
+                data: to_binary(&packet_to_broadcast)?,
+                timeout: timeout.clone()
+            };
+            let submsg = SubMsg::reply_on_success(msg, submsg_id);
+            res = res.add_submessage(submsg);
+        }
+    Ok(res)
+}
+
+
+pub fn add_broadcast_msgs(
+    mut res: Response,
+    timeout: IbcTimeout,
+    channel_ids: Vec<String>,
+    packet_to_broadcast: PacketMsg,
+) -> Result<Response, ContractError> {
+    // let mut res = res;
+        for channel_id in channel_ids {
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id.clone(),
+                data: to_binary(&packet_to_broadcast)?,
+                timeout: timeout.clone()
+            };
+            res = res.add_message(msg);
         }
     // }
-    Ok(msgs)
+    Ok(res)
 }
 
 pub fn broadcast_response(
@@ -279,8 +445,167 @@ fn encode_ibc_error(msg: impl Into<String>) -> Binary {
     to_binary(&AcknowledgementMsg::<()>::Err(msg.into())).unwrap()
 }
 
-fn get_timeout(env: Env) -> IbcTimeout {
+pub fn get_timeout(env: Env) -> IbcTimeout {
     env.block.time.plus_seconds(PACKET_LIFETIME).into()
+}
+
+
+pub fn receive_queue(
+    deps: DepsMut,
+    env: Env,
+    // dest_channel_id: String,
+    queue_to_process: Vec<PacketMsg>
+) -> StdResult<IbcReceiveResponse> {
+    let state = STATE.load(deps.storage)?;
+    let mut queue: Vec<Vec<PacketMsg>> = vec!(Vec::new(); state.channel_ids.len());
+    for msg in queue_to_process {
+        let _msg: StdResult<()> = match msg {
+            PacketMsg::MsgQueue { q: _q } => Ok(()),
+            PacketMsg::Propose {
+                chain_id,
+                k,
+                v,
+                view,
+            } => 
+                // Handle Propose
+                {
+                    let mut state = STATE.load(deps.storage)?;
+                    let mut msgs: Vec<SubMsg> = Vec::new();
+                    // ignore messages from other views, other than abort, done and request messages
+                    if view != state.view {
+                    } else {
+                        // upon receiving the first propose message from a chain
+                        if chain_id == state.primary && state.is_first_propose {
+                            // RECEIVED_PROPOSE.save(deps.storage, chain_id, &true)?;
+                            state.is_first_propose = false;
+                            STATE.save(deps.storage, &state)?;
+                            
+                            // First case we should broadcast Echo message
+                            if state.lock == 0 || v == state.lock_val {
+                                let echo_packet = PacketMsg::Echo { val: v, view };
+                                // msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
+                            
+                
+                            } else if view > k && k >= state.lock {
+                                // upon open_lock(proofs) == true
+                                // Second case we should broadcast Echo message
+                                if open_lock(&deps, state.proofs)? {
+                                    let echo_packet = PacketMsg::Echo { val: v, view };
+                                    // msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
+                                }
+                            }
+                        }
+                    }
+                
+                    // specify the type of AcknowledgementMsg to be ProposeResponse
+                    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(ProposeResponse {}))?;
+                    let res: IbcReceiveResponse = IbcReceiveResponse::new()
+                        .set_ack(acknowledgement)
+                        .add_attribute("action", "receive_propose");
+                    Ok(())
+
+                },
+            PacketMsg::WhoAmI { chain_id } => Ok(()),
+            // PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
+            PacketMsg::Request { view, chain_id } => Ok(()),
+            PacketMsg::Suggest {
+                chain_id,
+                view,
+                key2,
+                key2_val,
+                prev_key2,
+                key3,
+                key3_val,
+            } => 
+
+            // Handle Suggest msg within MsgQueue
+            {
+                let mut state = STATE.load(deps.storage)?;
+                let acknowledgement = to_binary(&AcknowledgementMsg::Ok(SuggestResponse {}))?;
+
+                // When I'm the primary
+                if state.primary == state.chain_id {
+
+                    // upon receiving the first suggest message from a chain
+                    if !RECEIVED_SUGGEST.load(deps.storage, chain_id)? {
+                        RECEIVED_SUGGEST.save(deps.storage, chain_id, &true)?;
+                        // Check if the following conditions hold
+                        if prev_key2 < key2 as i32 && key2 < view {
+                            state.key2_proofs.push((key2, key2_val, prev_key2));
+                            STATE.save(deps.storage, &state)?;
+                        }
+                        if key3 == 0 {
+                            state.suggestions.push((key3, key3_val));
+                            STATE.save(deps.storage, &state)?;
+                        } else if key3 < view {
+                            // Upon accept_key = true
+                            if accept_key(key3, key3_val.clone(), state.key2_proofs.clone()) {
+                                state.suggestions.push((key3, key3_val.clone()));
+                                STATE.save(deps.storage, &state)?;
+                            }
+                        }
+
+                        // Check if |suggestions| >= n - f
+                        if state.suggestions.len() >= state.n as usize - 1 {
+                            // Retrive the entry with the largest k
+                            let (k, v) = state.suggestions.iter().max().unwrap();
+                            let propose_packet = PacketMsg::Propose {
+                                chain_id: state.chain_id,
+                                k: k.clone(),
+                                v: v.clone(),
+                                view: state.view,
+                            };
+                            send_all_upon_join_queue(&deps, propose_packet, &mut queue).unwrap();
+
+                        }
+                        
+                    }
+                }
+
+                Ok(())
+    
+            },
+
+            PacketMsg::Proof {
+                key1,
+                key1_val,
+                prev_key1,
+                view,
+            } => Ok(()),
+            PacketMsg::Echo { val: _, view: _ } => Ok(()),
+        };
+    }
+
+    // After handling all msgs in queue sucessfully
+    // Generate msg queue to send
+    let mut msgs = Vec::new();
+    let timeout = get_timeout(env);
+    for (chain_id, msg_queue) in queue.iter().enumerate() {
+        // When chain wish to send some msgs to dest chain
+        if msg_queue.len() > 0 {
+            let channel_id = CHANNELS.load(deps.storage, chain_id.try_into().unwrap())?;
+            let msg = IbcMsg::SendPacket {
+                channel_id: channel_id,
+                data: to_binary(&PacketMsg::MsgQueue { q: msg_queue.to_vec() } )?,
+                timeout: timeout.clone(),
+            };
+            msgs.push(msg);
+        }
+    }
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;
+    let mut res = IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_msg_queue");
+    
+    // Add to Response if there are pending messages
+    if msgs.len() > 0 {
+        res = res.add_messages(msgs);
+    }
+    
+    Ok(res)
+
+
+
 }
 
 #[entry_point]
@@ -295,6 +620,7 @@ pub fn ibc_packet_receive(
         let dest_channel_id = packet.dest.channel_id;
         let msg: PacketMsg = from_slice(&packet.data)?;
         match msg {
+            PacketMsg::MsgQueue { q } => receive_queue(deps, env, q),
             PacketMsg::Propose {
                 chain_id,
                 k,
@@ -310,7 +636,7 @@ pub fn ibc_packet_receive(
                 view,
             ),
             PacketMsg::WhoAmI { chain_id } => receive_who_am_i(deps, dest_channel_id, chain_id),
-            PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
+            // PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
             PacketMsg::Request { view, chain_id } => {
                 receive_request(deps, dest_channel_id, view, chain_id)
             }
@@ -374,6 +700,61 @@ pub fn receive_proof(
         .add_attribute("action", "receive_proof"))
 }
 
+pub fn queue_receive_suggest(
+    _queue_to_process: Vec<Vec<PacketMsg>>,
+    deps: DepsMut,
+    env: &Env,
+    from_chain_id: u32,
+    view: u32,
+    key2: u32,
+    key2_val: String,
+    prev_key2: i32,
+    key3: u32,
+    key3_val: String,
+) -> StdResult<Vec<Vec<PacketMsg>>> {
+    let mut state = STATE.load(deps.storage)?;
+    let _acknowledgement = to_binary(&AcknowledgementMsg::Ok(SuggestResponse {}))?;
+
+    // When I'm the primary
+    if state.primary == state.chain_id {
+
+        // upon receiving the first suggest message from a chain
+        if !RECEIVED_SUGGEST.load(deps.storage, from_chain_id)? {
+            RECEIVED_SUGGEST.save(deps.storage, from_chain_id, &true)?;
+            // Check if the following conditions hold
+            if prev_key2 < key2 as i32 && key2 < view {
+                state.key2_proofs.push((key2, key2_val, prev_key2));
+                STATE.save(deps.storage, &state)?;
+            }
+            if key3 == 0 {
+                state.suggestions.push((key3, key3_val));
+                STATE.save(deps.storage, &state)?;
+            } else if key3 < view {
+                // Upon accept_key = true
+                if accept_key(key3, key3_val.clone(), state.key2_proofs.clone()) {
+                    state.suggestions.push((key3, key3_val.clone()));
+                    STATE.save(deps.storage, &state)?;
+                }
+            }
+
+            // Check if |suggestions| >= n - f
+            if state.suggestions.len() >= state.n as usize - 1 {
+                let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
+                // Retrive the entry with the largest k
+                let (k, v) = state.suggestions.iter().max().unwrap();
+                let propose_packet = PacketMsg::Propose {
+                    chain_id: state.chain_id,
+                    k: k.clone(),
+                    v: v.clone(),
+                    view: state.view,
+                };
+            }
+        }
+    }
+    Ok(Vec::new())
+
+}
+
 pub fn receive_suggest(
     deps: DepsMut,
     env: Env,
@@ -386,12 +767,10 @@ pub fn receive_suggest(
     key3_val: String,
 ) -> StdResult<IbcReceiveResponse> {
     let mut state = STATE.load(deps.storage)?;
-    let mut msgs: Vec<IbcMsg> = Vec::new();
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(SuggestResponse {}))?;
 
     // When I'm the primary
-    if state.primary == state.chain_id { 
-        //// TESTING ////
-        // state.suggestions.push((u32::MAX, "TESTING".to_string()));
+    if state.primary == state.chain_id {
 
         // upon receiving the first suggest message from a chain
         if !RECEIVED_SUGGEST.load(deps.storage, from_chain_id)? {
@@ -399,18 +778,21 @@ pub fn receive_suggest(
             // Check if the following conditions hold
             if prev_key2 < key2 as i32 && key2 < view {
                 state.key2_proofs.push((key2, key2_val, prev_key2));
+                STATE.save(deps.storage, &state)?;
             }
             if key3 == 0 {
                 state.suggestions.push((key3, key3_val));
+                STATE.save(deps.storage, &state)?;
             } else if key3 < view {
                 // Upon accept_key = true
                 if accept_key(key3, key3_val.clone(), state.key2_proofs.clone()) {
                     state.suggestions.push((key3, key3_val.clone()));
+                    STATE.save(deps.storage, &state)?;
                 }
             }
 
             // Check if |suggestions| >= n - f
-            if state.suggestions.len() >= 3 - 1 {
+            if state.suggestions.len() >= 2 - 1 {
                 let timeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
                 // Retrive the entry with the largest k
                 let (k, v) = state.suggestions.iter().max().unwrap();
@@ -421,27 +803,21 @@ pub fn receive_suggest(
                     view: state.view,
                 };
 
-                msgs.extend(
-                    send_all_upon_join(&deps, timeout, Vec::new(), propose_packet)
-                        .unwrap(),
-                );
+                return Ok(IbcReceiveResponse::new()
+                    .set_ack(acknowledgement)
+                    .add_submessages(send_all_upon_join(&deps, timeout, propose_packet).unwrap())
+                    .add_attribute("action", "receive_suggest")
+                    .add_attribute("suggest_sender_chain_id", from_chain_id.to_string()));
             }
             
         }
-        STATE.save(deps.storage, &state)?;
+        
     }
-
-    let response = SuggestResponse {};
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
-    let res = IbcReceiveResponse::new()
+    // let acknowledgement = to_binary(&AcknowledgementMsg::Ok(SuggestResponse {}))?;
+    Ok(IbcReceiveResponse::new()
         .set_ack(acknowledgement)
         .add_attribute("action", "receive_suggest")
-        .add_attribute("suggest_sender_chain_id", from_chain_id.to_string());
-    if !msgs.is_empty() {
-        Ok(res.add_messages(msgs))
-    } else {
-        Ok(res)
-    }
+        .add_attribute("suggest_sender_chain_id", from_chain_id.to_string()))
 }
 
 fn accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool {
@@ -465,16 +841,17 @@ pub fn receive_request(
     view: u32,
     chain_id: u32,
 ) -> StdResult<IbcReceiveResponse> {
-    let _state = STATE.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
+    state.key2_proofs.push((state.current_tx_id,"received_request".to_string(), chain_id as i32));
+    state.current_tx_id += 1;
+    STATE.save(deps.storage, &state)?;
     // Update stored highest_request for that blockchain accordingly
     let highest_request = HIGHEST_REQ.load(deps.storage, chain_id)?;
-    if highest_request == u32::MAX {
-    } else if highest_request < view {
+    if highest_request < view {
         HIGHEST_REQ.save(deps.storage, chain_id, &view)?;
     }
 
-    let response = RequestResponse {};
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(RequestResponse {}))?;
 
     Ok(IbcReceiveResponse::new()
         .set_ack(acknowledgement)
@@ -499,7 +876,15 @@ fn open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool>
     }
 }
 
-pub fn receive_propose(
+// pub fn receive_wrapper(
+//     msgs: Vec<SubMsg>,
+//     receive_type: String
+// ) -> StdResult<IbcReceiveResponse> {
+//     let res = IbcReceiveResponse::new();
+//     Ok(res)
+// }
+
+pub fn queue_receive_propose(
     deps: DepsMut,
     _caller: String,
     timeout: IbcTimeout,
@@ -507,10 +892,10 @@ pub fn receive_propose(
     k: u32,
     v: String,
     view: u32,
-) -> StdResult<IbcReceiveResponse> {
+) -> StdResult<Vec<SubMsg>> {
     let mut state = STATE.load(deps.storage)?;
     // let mut send_msg = false;
-    let mut msgs: Vec<IbcMsg> = Vec::new();
+    let mut msgs: Vec<SubMsg> = Vec::new();
     // ignore messages from other views, other than abort, done and request messages
     if view != state.view {
     } else {
@@ -523,7 +908,7 @@ pub fn receive_propose(
             // First case we should broadcast Echo message
             if state.lock == 0 || v == state.lock_val {
                 let echo_packet = PacketMsg::Echo { val: v, view };
-                msgs.extend(send_all_upon_join(&deps, timeout.clone(), msgs.clone(), echo_packet).unwrap());
+                msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
             
 
             } else if view > k && k >= state.lock {
@@ -531,7 +916,54 @@ pub fn receive_propose(
                 // Second case we should broadcast Echo message
                 if open_lock(&deps, state.proofs)? {
                     let echo_packet = PacketMsg::Echo { val: v, view };
-                    msgs.extend(send_all_upon_join(&deps, timeout.clone(), msgs.clone(), echo_packet).unwrap());
+                    msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
+                }
+            }
+        }
+    }
+
+    // specify the type of AcknowledgementMsg to be ProposeResponse
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(ProposeResponse {}))?;
+    let _res: IbcReceiveResponse = IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_propose");
+    // send back acknowledgement, containing the response info
+    Ok(msgs)
+}
+
+pub fn receive_propose(
+    deps: DepsMut,
+    _caller: String,
+    timeout: IbcTimeout,
+    chain_id: u32,
+    k: u32,
+    v: String,
+    view: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let mut state = STATE.load(deps.storage)?;
+    // let mut send_msg = false;
+    let mut msgs: Vec<SubMsg> = Vec::new();
+    // ignore messages from other views, other than abort, done and request messages
+    if view != state.view {
+    } else {
+        // upon receiving the first propose message from a chain
+        if chain_id == state.primary && state.is_first_propose {
+            // RECEIVED_PROPOSE.save(deps.storage, chain_id, &true)?;
+            state.is_first_propose = false;
+            STATE.save(deps.storage, &state)?;
+            
+            // First case we should broadcast Echo message
+            if state.lock == 0 || v == state.lock_val {
+                let echo_packet = PacketMsg::Echo { val: v, view };
+                msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
+            
+
+            } else if view > k && k >= state.lock {
+                // upon open_lock(proofs) == true
+                // Second case we should broadcast Echo message
+                if open_lock(&deps, state.proofs)? {
+                    let echo_packet = PacketMsg::Echo { val: v, view };
+                    msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
                 }
             }
         }
@@ -546,7 +978,7 @@ pub fn receive_propose(
     if msgs.is_empty() {
         Ok(res)
     } else {
-        Ok(res.add_messages(msgs))
+        Ok(res.add_submessages(msgs))
     }
 }
 pub fn receive_commit(
@@ -634,6 +1066,7 @@ pub fn ibc_packet_ack(
 ) -> StdResult<IbcBasicResponse> {
     let packet: PacketMsg = from_slice(&msg.original_packet.data)?;
     match packet {
+        PacketMsg::MsgQueue { q } => todo!(),
         PacketMsg::Propose {
             chain_id: _,
             k: _,
@@ -643,12 +1076,13 @@ pub fn ibc_packet_ack(
             let res: AcknowledgementMsg<ProposeResponse> = from_slice(&msg.acknowledgement.data)?;
             acknowledge_propose(deps, env, res)
         }
-        PacketMsg::Commit { msg: _, tx_id: _ } => Ok(IbcBasicResponse::new()),
+        // PacketMsg::Commit { msg: _, tx_id: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::WhoAmI { chain_id: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::Request {
             chain_id: _,
             view: _,
         } => Ok(IbcBasicResponse::new()),
+        // acknowledge_request(deps, env),
         PacketMsg::Suggest {
             view: _,
             key2: _,
@@ -657,15 +1091,61 @@ pub fn ibc_packet_ack(
             key3: _,
             key3_val: _,
             chain_id: _,
-        } => todo!(),
+        } => Ok(IbcBasicResponse::new()),
         PacketMsg::Proof {
             key1: _,
             key1_val: _,
             prev_key1: _,
             view: _,
-        } => todo!(),
-        PacketMsg::Echo { val: _, view: _ } => todo!()
+        } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Echo { val: _, view: _ } => Ok(IbcBasicResponse::new())
     }
+}
+
+fn acknowledge_request(
+    deps: DepsMut,
+    env: Env,
+) -> StdResult<IbcBasicResponse> {
+    
+    // Upon sucessfully called the broadcast of Request Messages
+    // Load the state 
+    let mut state = STATE.load(deps.storage)?;
+    if !state.is_first_req_ack {
+        return Ok(IbcBasicResponse::new());
+    }
+    state.is_first_req_ack = false;
+    STATE.save(deps.storage, &state)?;
+    if state.chain_id != state.primary {
+        // Upon highest_request[primary] = view
+        let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
+        if prim_highest_req == state.view {
+            // Contruct Suggest message to delivery to primary
+            let packet = PacketMsg::Suggest {
+                chain_id: state.chain_id,
+                view: state.view,
+                key2: state.key2,
+                key2_val: state.key2_val.clone(),
+                prev_key2: state.prev_key2,
+                key3: state.key3,
+                key3_val: state.key3_val.clone(),
+            };
+            // let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
+            let channel_id = CHANNELS.load(deps.storage, state.primary)?;
+            let timeout = get_timeout(env);
+            let msg = IbcMsg::SendPacket {
+                channel_id,
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            };
+            let submsg = SubMsg::reply_on_success(msg, SUGGEST_REPLY_ID);
+            // let submsg = msg;
+            // construct Response and put Suggest message in the query on the fly
+            return Ok(IbcBasicResponse::new()
+                .add_submessage(submsg)
+                .add_attribute("action", "send_suggest2primary".to_string()))
+        }
+    }
+    Ok(IbcBasicResponse::new())
 }
 
 fn acknowledge_propose(
@@ -675,7 +1155,7 @@ fn acknowledge_propose(
 ) -> StdResult<IbcBasicResponse> {
     let _timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
     // retrive tx_id from acknowledge message
-    match ack {
+    let _tx_id = match ack {
         AcknowledgementMsg::Ok(res) => res,
         AcknowledgementMsg::Err(e) => {
             return Ok(IbcBasicResponse::new()

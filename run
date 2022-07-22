@@ -28,6 +28,10 @@ export FLAG1="--node $CHAIN_1_NODE --chain-id ibc-1 $BASE_FLAG"
 export FLAG2="--node $CHAIN_2_NODE --chain-id ibc-2 $BASE_FLAG"
 export FLAG3="--node $CHAIN_3_NODE --chain-id ibc-3 $BASE_FLAG"
 
+start_rly1() {
+  rly start mypath0-1 --debug-addr localhost:7597
+}
+
 start_rly3() {
   rly start mypath0-1 --debug-addr localhost:7597 & 
   rly start mypath0-2 --debug-addr localhost:7598 &
@@ -43,6 +47,52 @@ start_rly4() {
   rly start mypath1-3 --debug-addr localhost:7601 &
   rly start mypath2-3 --debug-addr localhost:7602 && 
   fg
+}
+
+upload_and_instantiate1() {
+  # First compile the smart contract into optimal file size
+  cd simple-option && RUSTFLAGS='-C link-arg=-s' cargo wasm && cd ..
+  export CONTRACT_PATH=simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm
+  
+  set +x
+
+  echo "Uploading $CONTRACT_NAME smart contract to all three blockchains..."
+  ## CHAIN 0
+  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-0 $FLAG0 -y --output json)
+  CODE_ID_CHAIN0=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-0, code_id: $CODE_ID_CHAIN0"
+  ## CHAIN 1
+  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-1 $FLAG1 -y --output json)
+  CODE_ID_CHAIN1=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-1, code_id: $CODE_ID_CHAIN1"
+
+  # Instantiate the smart contracts
+  echo "Instantiating smart contracts..."
+
+  INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0"}'
+  INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1"}'
+
+  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
+  wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
+
+  echo "Instantiation completed!"
+
+  set +x
+
+  # get addr of our smart contracts
+  ADDR_CHAIN0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+  ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+
+  echo "contract ADDR on CHAIN0: $ADDR_CHAIN0"
+  echo "contract ADDR on CHAIN1: $ADDR_CHAIN1"
+
+  IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+
+  echo "Completed!"
+
+  exit 0
+
 }
 
 upload_and_instantiate3() {
@@ -190,6 +240,29 @@ upload_and_instantiate4() {
 
 }
 
+ibc_link1() {
+  # Retrieve the lastest code_id
+  CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+
+  # fetch address of the smart contract using the code_id
+  ADDR_CHAIN0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+  ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+
+  # fetching ibc ports on each chain
+  IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  
+  set -x
+
+  # Link the ibc ports (blockchain0->blockchain1, blockchain0->blockchain2)
+  rly tx link mypath0-1 --src-port $IBCPORT_0 --dst-port $IBCPORT_1
+  # rly tx link mypath0-2 --src-port $IBCPORT_0 --dst-port $IBCPORT_2
+  # rly tx link mypath1-2 --src-port $IBCPORT_1 --dst-port $IBCPORT_2
+
+  exit 0
+}
+
 ibc_link3() {
   # Retrieve the lastest code_id
   CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
@@ -282,6 +355,32 @@ query() {
   exit 0
 }
 
+execute1() {
+
+  # Retrieve the lastest code_id
+  CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+
+  # fetch address of the smart contract using the code_id
+  ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+  ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+
+  # execute input message
+  EXEC_MSG0='{ "input": { "value": "0"} }'
+  EXEC_MSG1='{ "input": { "value": "1"} }'
+
+  set -x
+  
+  wasmd tx wasm execute $ADDR0 "$EXEC_MSG0" --output json --from ibc-0 $FLAG0 -y
+  wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
+
+  set +x
+
+  echo "Execution Successful!"
+
+  exit 0
+}
+
 execute3() {
 
   # Retrieve the lastest code_id
@@ -350,6 +449,11 @@ killall() {
   exit 0
 }
 
+# upload to 2 chains command
+if [ $1 = "u1" ]; then 
+  upload_and_instantiate1
+fi
+
 # upload to 3 chains command
 if [ $1 = "upload3" ]; then 
   upload_and_instantiate3
@@ -358,6 +462,11 @@ fi
 # upload to 4 chains command
 if [ $1 = "upload4" ]; then 
   upload_and_instantiate4
+fi
+
+# start the relayer for 1 link
+if [ $1 = "rly1" ]; then 
+  start_rly1
 fi
 
 # start the relayer for 3 chains
@@ -370,6 +479,11 @@ if [ $1 = "rly4" ]; then
   start_rly4
 fi
 
+# TESTING: only link one path, ibc link1 command
+if [ $1 = "link1" ]; then 
+  ibc_link1
+fi
+
 # ibc link3 command
 if [ $1 = "link3" ]; then 
   ibc_link3
@@ -380,7 +494,12 @@ if [ $1 = "link4" ]; then
   ibc_link4
 fi
 
-# execute command
+# execute1 command
+if [ $1 = "e1" ]; then 
+  execute1
+fi
+
+# execute3 command
 if [ $1 = "e3" ]; then 
   execute3
 fi

@@ -25,7 +25,8 @@ pub enum QueryMsg {
     GetTx { tx_id: String },
     GetChannels { },
     GetTest { },
-    GetHighestReq { }
+    GetHighestReq { },
+    GetReceivedSuggest { }
 }
 
 // We define a custom struct for each query response
@@ -45,7 +46,12 @@ pub struct ChannelsResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SuggestionsResponse {
-    pub suggestions: Vec<(u32, u32)>
+pub struct HighestReqResponse {
+    pub highest_request: Vec<(u32, u32)>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ReceivedSuggestResponse {
+    pub received_suggest: Vec<(u32, bool)>
 }
 

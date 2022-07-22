@@ -8,6 +8,9 @@ use crate::msg::ExecuteMsg;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PacketMsg {
+    MsgQueue {
+        q: Vec<PacketMsg>
+    },
     Propose { 
         chain_id: u32,
         k: u32, 
@@ -19,11 +22,13 @@ pub enum PacketMsg {
         val: String,
         view: u32
     },
-    Commit { 
-        msg: ExecuteMsg, 
-        tx_id: u32
+    WhoAmI { 
+        chain_id: u32,
+        
     },
-    WhoAmI { chain_id: u32 },
+    // TimeoutMsg{
+    //     time_view: u32
+    // },
     Request { 
         view: u32, 
         chain_id: u32 
@@ -44,6 +49,11 @@ pub enum PacketMsg {
         view: u32
     }
 }
+// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+// #[serde(rename_all = "snake_case")]
+// pub struct MsgQueue {
+//     q: Vec<PacketMsg>
+// }
 
 /// All IBC acknowledgements are wrapped in `ContractResult`.
 /// The success value depends on the PacketMsg variant.
@@ -77,4 +87,8 @@ pub struct SuggestResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProofResponse {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MsgQueueResponse {
 }

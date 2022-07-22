@@ -1,19 +1,27 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, IbcTimeout, MessageInfo, Order, Response, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, IbcTimeout, MessageInfo, Order, Response, StdResult, IbcMsg, Reply, StdError, SubMsg,
 };
 
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::ibc::{view_change, PACKET_LIFETIME};
-use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, SuggestionsResponse};
-use crate::state::{State, Test, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF};
+use crate::ibc::{view_change, PACKET_LIFETIME, get_timeout};
+use crate::ibc_msg::PacketMsg;
+// use crate::ibc_msg::PacketMsg;
+use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, HighestReqResponse, ReceivedSuggestResponse};
+use crate::state::TEST;
+use crate::{state::{State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF}};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const REQUEST_REPLY_ID: u64 = 100;
+pub const SUGGEST_REPLY_ID: u64 = 101;
+pub const PROOF_REPLY_ID: u64 = 102;
+pub const PROPOSE_REPLY_ID: u64 = 103;
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -46,7 +54,9 @@ pub fn instantiate(
         suggestions: Vec::new(),
         key2_proofs: Vec::new(),
         proofs: Vec::new(),
-        is_first_propose: true
+        is_first_propose: true,
+        is_first_req_ack: true,
+        sent_suggest: false,
 
     };
     STATE.save(deps.storage, &state)?;
@@ -120,20 +130,21 @@ pub fn handle_execute_input(
     // Store values to state
     STATE.save(deps.storage, &state)?;
 
-    let msgs = view_change(deps, timeout.clone())?;
-
+    // By calling view_change(), Request messages will be delivered to all chains that we established a channel with
+    view_change(deps, timeout.clone())
+    
     // broadcast message
-    if !msgs.is_empty() {
-        Ok(Response::new()
-            .add_messages(msgs)
-            .add_attribute("action", "execute")
-            .add_attribute("msg_type", "input"))
-    }
-    else {
-        Ok(Response::new()
-            .add_attribute("action", "execute")
-            .add_attribute("msg_type", "input"))
-    }
+    // if !msgs.is_empty() {
+    //     Ok(Response::new()
+    //         .add_messages(msgs)
+    //         .add_attribute("action", "execute")
+    //         .add_attribute("msg_type", "input"))
+    // }
+    // else {
+    //     Ok(Response::new()
+    //         .add_attribute("action", "execute")
+    //         .add_attribute("msg_type", "input"))
+    // }
 }
 
 // execute entry_point is used for beginning new instance of IT-HS consensus
@@ -197,22 +208,30 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
         QueryMsg::GetHighestReq { } => to_binary(&query_highest_request(deps)?),
+        QueryMsg::GetReceivedSuggest {  } => to_binary(&query_received_suggest(deps)?),
     }
 }
 
-fn query_highest_request(deps: Deps) -> StdResult<SuggestionsResponse> {
-    let req: StdResult<Vec<_>> = HIGHEST_REQ.range(deps.storage, None, None, Order::Ascending).collect();
-    Ok(SuggestionsResponse {
-        suggestions: req?,
+fn query_received_suggest(deps: Deps) -> StdResult<ReceivedSuggestResponse> {
+    let req: StdResult<Vec<_>> = RECEIVED_SUGGEST.range(deps.storage, None, None, Order::Ascending).collect();
+    Ok(ReceivedSuggestResponse {
+        received_suggest: req?,
     })
 }
 
-fn query_test(_deps: Deps) -> StdResult<Vec<(u32, Test)>> {
-    // let test: StdResult<Vec<_>> = TEST
-    // .range(deps.storage, None, None, Order::Ascending)
-    // .collect();
+fn query_highest_request(deps: Deps) -> StdResult<HighestReqResponse> {
+    let req: StdResult<Vec<_>> = HIGHEST_REQ.range(deps.storage, None, None, Order::Ascending).collect();
+    Ok(HighestReqResponse {
+        highest_request: req?,
+    })
+}
 
-    Ok(Vec::new())
+fn query_test(deps: Deps) -> StdResult<Vec<(String, Vec<IbcMsg>)>> {
+    let test: StdResult<Vec<_>> = TEST
+    .range(deps.storage, None, None, Order::Ascending)
+    .collect();
+
+    Ok(test?)
 }
 
 fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
@@ -246,6 +265,69 @@ fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
         Some(v) => Ok(ValueResponse::KeyFound { key, value: v }),
         None => Ok(ValueResponse::KeyNotFound {}),
     }
+}
+
+// entry_point for sub-messages
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+    match msg.id {
+        REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
+        SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(env), msg),
+        id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
+    }
+}
+
+fn handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
+    return Ok(Response::new());
+    // Upon sucessfully called the broadcast of Request Messages
+    // Load the state 
+    let state = STATE.load(deps.storage)?;
+    if state.chain_id != state.primary {
+        // Upon highest_request[primary] = view
+        let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
+        if prim_highest_req == state.view {
+            // Contruct Suggest message to delivery to primary
+            let packet = PacketMsg::Suggest {
+                chain_id: state.chain_id,
+                view: state.view,
+                key2: state.key2,
+                key2_val: state.key2_val.clone(),
+                prev_key2: state.prev_key2,
+                key3: state.key3,
+                key3_val: state.key3_val.clone(),
+            };
+
+            let channel_id = CHANNELS.load(deps.storage, state.primary)?;
+            let msg = IbcMsg::SendPacket {
+                channel_id,
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            };
+            let submsg: SubMsg = SubMsg::reply_on_success(msg, SUGGEST_REPLY_ID);
+            
+            // construct Response and put Suggest message in the query on the fly
+            return Ok(Response::new()
+                .add_submessage(submsg)
+                .add_attribute("action", "send_suggest2primary".to_string()))
+
+        }
+    
+    }
+
+    // TODO: Add ops for reply of Request message
+    Ok(Response::new())
+    // Add consecutive submessages
+    
+}
+
+fn handle_suggest_reply(_deps: DepsMut, _timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
+    // Upon sucessfully delivered the Suggest Message
+    // Load the state 
+    // let _state = STATE.load(deps.storage)?;
+    let res: Response = Response::new();
+
+    // Add consecutive submessages
+    Ok(res)
 }
 
 #[cfg(test)]

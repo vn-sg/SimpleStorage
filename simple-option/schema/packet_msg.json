@@ -6,6 +6,29 @@
     {
       "type": "object",
       "required": [
+        "msg_queue"
+      ],
+      "properties": {
+        "msg_queue": {
+          "type": "object",
+          "required": [
+            "q"
+          ],
+          "properties": {
+            "q": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/PacketMsg"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "propose"
       ],
       "properties": {
@@ -58,32 +81,6 @@
               "type": "string"
             },
             "view": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "commit"
-      ],
-      "properties": {
-        "commit": {
-          "type": "object",
-          "required": [
-            "msg",
-            "tx_id"
-          ],
-          "properties": {
-            "msg": {
-              "$ref": "#/definitions/ExecuteMsg"
-            },
-            "tx_id": {
               "type": "integer",
               "format": "uint32",
               "minimum": 0.0
@@ -235,25 +232,61 @@
     }
   ],
   "definitions": {
-    "ExecuteMsg": {
+    "PacketMsg": {
+      "description": "Messages that will be sent over the IBC channel",
       "oneOf": [
         {
           "type": "object",
           "required": [
-            "set"
+            "msg_queue"
           ],
           "properties": {
-            "set": {
+            "msg_queue": {
               "type": "object",
               "required": [
-                "key",
-                "value"
+                "q"
               ],
               "properties": {
-                "key": {
+                "q": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/PacketMsg"
+                  }
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "propose"
+          ],
+          "properties": {
+            "propose": {
+              "type": "object",
+              "required": [
+                "chain_id",
+                "k",
+                "v",
+                "view"
+              ],
+              "properties": {
+                "chain_id": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "k": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "v": {
                   "type": "string"
                 },
-                "value": {
+                "view": {
                   "type": "integer",
                   "format": "uint32",
                   "minimum": 0.0
@@ -266,17 +299,23 @@
         {
           "type": "object",
           "required": [
-            "get"
+            "echo"
           ],
           "properties": {
-            "get": {
+            "echo": {
               "type": "object",
               "required": [
-                "key"
+                "val",
+                "view"
               ],
               "properties": {
-                "key": {
+                "val": {
                   "type": "string"
+                },
+                "view": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
                 }
               }
             }
@@ -286,17 +325,137 @@
         {
           "type": "object",
           "required": [
-            "input"
+            "who_am_i"
           ],
           "properties": {
-            "input": {
+            "who_am_i": {
               "type": "object",
               "required": [
-                "value"
+                "chain_id"
               ],
               "properties": {
-                "value": {
+                "chain_id": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "request"
+          ],
+          "properties": {
+            "request": {
+              "type": "object",
+              "required": [
+                "chain_id",
+                "view"
+              ],
+              "properties": {
+                "chain_id": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "view": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "suggest"
+          ],
+          "properties": {
+            "suggest": {
+              "type": "object",
+              "required": [
+                "chain_id",
+                "key2",
+                "key2_val",
+                "key3",
+                "key3_val",
+                "prev_key2",
+                "view"
+              ],
+              "properties": {
+                "chain_id": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "key2": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "key2_val": {
                   "type": "string"
+                },
+                "key3": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "key3_val": {
+                  "type": "string"
+                },
+                "prev_key2": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "view": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "proof"
+          ],
+          "properties": {
+            "proof": {
+              "type": "object",
+              "required": [
+                "key1",
+                "key1_val",
+                "prev_key1",
+                "view"
+              ],
+              "properties": {
+                "key1": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "key1_val": {
+                  "type": "string"
+                },
+                "prev_key1": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "view": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
                 }
               }
             }

@@ -90,6 +90,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_received_suggest"
+      ],
+      "properties": {
+        "get_received_suggest": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
