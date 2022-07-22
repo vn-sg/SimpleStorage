@@ -93,6 +93,32 @@
     {
       "type": "object",
       "required": [
+        "key1"
+      ],
+      "properties": {
+        "key1": {
+          "type": "object",
+          "required": [
+            "val",
+            "view"
+          ],
+          "properties": {
+            "val": {
+              "type": "string"
+            },
+            "view": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "who_am_i"
       ],
       "properties": {
@@ -303,6 +329,32 @@
           ],
           "properties": {
             "echo": {
+              "type": "object",
+              "required": [
+                "val",
+                "view"
+              ],
+              "properties": {
+                "val": {
+                  "type": "string"
+                },
+                "view": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "key1"
+          ],
+          "properties": {
+            "key1": {
               "type": "object",
               "required": [
                 "val",

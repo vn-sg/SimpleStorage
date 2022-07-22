@@ -1,6 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::ibc_msg::PacketMsg;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub role: String,
@@ -26,7 +28,9 @@ pub enum QueryMsg {
     GetChannels { },
     GetTest { },
     GetHighestReq { },
-    GetReceivedSuggest { }
+    GetReceivedSuggest { },
+    GetSendAllUpon { },
+    GetTestQueue { }
 }
 
 // We define a custom struct for each query response
@@ -55,3 +59,12 @@ pub struct ReceivedSuggestResponse {
     pub received_suggest: Vec<(u32, bool)>
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SendAllUponResponse {
+    pub send_all_upon: Vec<(u32, Vec<PacketMsg>)>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TestQueueResponse {
+    pub test_queue: Vec<(u32, (u32, Vec<PacketMsg>))>
+}

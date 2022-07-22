@@ -102,6 +102,30 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_send_all_upon"
+      ],
+      "properties": {
+        "get_send_all_upon": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_test_queue"
+      ],
+      "properties": {
+        "get_test_queue": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

@@ -6,6 +6,7 @@ use cw_storage_plus::{Item, Map};
 
 use crate::{msg::ExecuteMsg, ibc_msg::PacketMsg};
 
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub role: String,
@@ -35,6 +36,36 @@ pub struct State {
     pub is_first_req_ack: bool,
     pub sent_suggest: bool
 }
+
+// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+// pub struct State {
+//     pub role: String,
+//     pub n: u32,
+//     pub chain_id: u32,
+//     pub channel_ids: Vec<String>,
+//     pub current_tx_id: u32,
+//     pub view: u32,
+//     pub cur_view: u32,
+//     pub primary: u32,
+//     pub key1: u32,
+//     pub key2: u32,
+//     pub key3: u32,
+//     pub lock: u32,
+//     pub key1_val: String,
+//     pub key2_val: String,
+//     pub key3_val: String,
+//     pub lock_val: String,
+
+//     pub prev_key1: i32,
+//     pub prev_key2: i32,
+
+//     pub suggestions: Vec<(u32, String)>,
+//     pub key2_proofs: Vec<(u32, String, i32)>,
+//     pub proofs: Vec<(u32, String, i32)>,
+//     pub is_first_propose: bool,
+//     pub is_first_req_ack: bool,
+//     pub sent_suggest: bool
+// }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Tx {
     pub msg: ExecuteMsg,
@@ -62,8 +93,11 @@ pub const RECEIVED_SUGGEST: Map<u32, bool> = Map::new("received_suggest");
 pub const RECEIVED_PROOF: Map<u32, bool> = Map::new("received_proof");
 // pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
-pub const TEST: Map<String, Vec<IbcMsg>> = Map::new("test");
+pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
+pub const TEST_QUEUE: Map<u32, (u32, Vec<PacketMsg>)> = Map::new("test_queue");
 pub const UPON_QUEUE: Map<String, Vec<PacketMsg>> = Map::new("upon_queue");
 pub const SEND_ALL_UPON: Map<u32, Vec<PacketMsg>> = Map::new("send_all_upon");
+
+pub const ECHO: Map<String, u32> = Map::new("echo");
 
 

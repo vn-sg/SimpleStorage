@@ -2,8 +2,6 @@ use cosmwasm_std::{ContractResult};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::msg::ExecuteMsg;
-
 /// Messages that will be sent over the IBC channel
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -19,6 +17,10 @@ pub enum PacketMsg {
     },
     Echo {
         // chain_id: u32,
+        val: String,
+        view: u32
+    },
+    Key1 {
         val: String,
         view: u32
     },
@@ -87,6 +89,14 @@ pub struct SuggestResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProofResponse {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct EchoResponse {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Key1Response {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

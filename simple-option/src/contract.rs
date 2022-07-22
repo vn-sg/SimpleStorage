@@ -10,8 +10,8 @@ use crate::error::ContractError;
 use crate::ibc::{view_change, PACKET_LIFETIME, get_timeout};
 use crate::ibc_msg::PacketMsg;
 // use crate::ibc_msg::PacketMsg;
-use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, HighestReqResponse, ReceivedSuggestResponse};
-use crate::state::TEST;
+use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, HighestReqResponse, ReceivedSuggestResponse, SendAllUponResponse, TestQueueResponse};
+use crate::state::{TEST, SEND_ALL_UPON, TEST_QUEUE};
 use crate::{state::{State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF}};
 
 // version info for migration info
@@ -99,6 +99,7 @@ pub fn handle_execute_input(
         .map(|id| HIGHEST_REQ.save(deps.storage, id?, &0)? );
     */
     let mut state = STATE.load(deps.storage)?;
+
     // Initialization
     state.view = 0;
     state.cur_view = 0;
@@ -134,17 +135,6 @@ pub fn handle_execute_input(
     view_change(deps, timeout.clone())
     
     // broadcast message
-    // if !msgs.is_empty() {
-    //     Ok(Response::new()
-    //         .add_messages(msgs)
-    //         .add_attribute("action", "execute")
-    //         .add_attribute("msg_type", "input"))
-    // }
-    // else {
-    //     Ok(Response::new()
-    //         .add_attribute("action", "execute")
-    //         .add_attribute("msg_type", "input"))
-    // }
 }
 
 // execute entry_point is used for beginning new instance of IT-HS consensus
@@ -209,7 +199,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
         QueryMsg::GetHighestReq { } => to_binary(&query_highest_request(deps)?),
         QueryMsg::GetReceivedSuggest {  } => to_binary(&query_received_suggest(deps)?),
+        QueryMsg::GetSendAllUpon {  } => to_binary(&query_send_all_upon(deps)?),
+        QueryMsg::GetTestQueue {  } => to_binary(&query_test_queue(deps)?),
     }
+}
+
+fn query_test_queue(deps: Deps) -> StdResult<TestQueueResponse> {
+    let req: StdResult<Vec<_>> = TEST_QUEUE.range(deps.storage, None, None, Order::Ascending).collect();
+    Ok(TestQueueResponse {
+        test_queue: req?,
+    })
+}
+
+fn query_send_all_upon(deps: Deps) -> StdResult<SendAllUponResponse> {
+    let req: StdResult<Vec<_>> = SEND_ALL_UPON.range(deps.storage, None, None, Order::Ascending).collect();
+    Ok(SendAllUponResponse {
+        send_all_upon: req?,
+    })
 }
 
 fn query_received_suggest(deps: Deps) -> StdResult<ReceivedSuggestResponse> {
@@ -226,7 +232,7 @@ fn query_highest_request(deps: Deps) -> StdResult<HighestReqResponse> {
     })
 }
 
-fn query_test(deps: Deps) -> StdResult<Vec<(String, Vec<IbcMsg>)>> {
+fn query_test(deps: Deps) -> StdResult<Vec<(u32, Vec<IbcMsg>)>> {
     let test: StdResult<Vec<_>> = TEST
     .range(deps.storage, None, None, Order::Ascending)
     .collect();
@@ -271,14 +277,14 @@ fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
-        REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
+        // REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
+        REQUEST_REPLY_ID => Ok(Response::new()),
         SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(env), msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
 
-fn handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
-    return Ok(Response::new());
+fn _handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
     // Upon sucessfully called the broadcast of Request Messages
     // Load the state 
     let state = STATE.load(deps.storage)?;

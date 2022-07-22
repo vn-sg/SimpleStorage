@@ -332,8 +332,14 @@ query() {
   CHAIN=$2
   if [ $3 = "state" ]; then
     QUERY_MSG='{"get_state": {}}' 
-  elif [ $3 = req ]; then
+  elif [ $3 = "req" ]; then
     QUERY_MSG='{"get_highest_req": {}}' 
+  elif [ $3 = "suggest" ]; then
+    QUERY_MSG='{"get_received_suggest": {}}' 
+  elif [ $3 = "upon" ]; then
+    QUERY_MSG='{"get_send_all_upon": {}}' 
+  elif [ $3 = "queue" ]; then
+    QUERY_MSG='{"get_test_queue": {}}' 
   elif [ $3 = "chan" ]; then
     QUERY_MSG='{"get_channels": {}}' 
   elif [ $3 = "test" ]; then
