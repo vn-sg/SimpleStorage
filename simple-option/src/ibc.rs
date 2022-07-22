@@ -822,7 +822,7 @@ pub fn receive_queue(
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    // Update local record of key1 messages
+                    // Update local record of key2 messages
                     let action = |count: Option<u32>| -> StdResult<u32> {
                         match count {
                             Some(c) => Ok(c + 1),
@@ -834,7 +834,7 @@ pub fn receive_queue(
                     // upon receiving from n - f parties with the same val
                     if count >= state.n - F {
 
-                        // send_all_upon_join_queue(<key2, val, view>)
+                        // send_all_upon_join_queue(<key3, val, view>)
                         let key3_packet = PacketMsg::Key3 { val: val.clone(), view };
                         let channel_ids = get_id_channel_pair(&deps)?;
 
@@ -870,14 +870,13 @@ pub fn receive_queue(
             },
             PacketMsg::Key3 { val, view } => 
 
-
             // Handle Key3
             {
                 let mut state = STATE.load(deps.storage)?;
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    // Update local record of key1 messages
+                    // Update local record of key3 messages
                     let action = |count: Option<u32>| -> StdResult<u32> {
                         match count {
                             Some(c) => Ok(c + 1),
@@ -889,7 +888,7 @@ pub fn receive_queue(
                     // upon receiving from n - f parties with the same val
                     if count >= state.n - F {
 
-                        // send_all_upon_join_queue(<key2, val, view>)
+                        // send_all_upon_join_queue(<lock, val, view>)
                         let lock_packet = PacketMsg::Lock { val: val.clone(), view };
                         let channel_ids = get_id_channel_pair(&deps)?;
 
@@ -913,7 +912,7 @@ pub fn receive_queue(
                                 SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
                             }
                         }
-                        // send_all_upon_join_queue(<key3, val, view>)/
+                        // send_all_upon_join_queue(<lock, val, view>)/
                         
                         state.lock = view;
                         state.lock_val = val;
@@ -931,7 +930,7 @@ pub fn receive_queue(
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    // Update local record of key1 messages
+                    // Update local record of lock messages
                     let action = |count: Option<u32>| -> StdResult<u32> {
                         match count {
                             Some(c) => Ok(c + 1),
