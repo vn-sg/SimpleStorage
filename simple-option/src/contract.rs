@@ -10,7 +10,7 @@ use crate::error::ContractError;
 use crate::ibc::{view_change, PACKET_LIFETIME, get_timeout};
 use crate::ibc_msg::PacketMsg;
 // use crate::ibc_msg::PacketMsg;
-use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, HighestReqResponse, ReceivedSuggestResponse, SendAllUponResponse, TestQueueResponse};
+use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, HighestReqResponse, ReceivedSuggestResponse, SendAllUponResponse, TestQueueResponse, StateResponse};
 use crate::state::{TEST, SEND_ALL_UPON, TEST_QUEUE};
 use crate::{state::{State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF}};
 
@@ -57,7 +57,7 @@ pub fn instantiate(
         is_first_propose: true,
         is_first_req_ack: true,
         sent_suggest: false,
-
+        done: None
     };
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -101,6 +101,7 @@ pub fn handle_execute_input(
     let mut state = STATE.load(deps.storage)?;
 
     // Initialization
+    state.done = None;
     state.view = 0;
     state.cur_view = 0;
     state.primary = 1;
@@ -193,7 +194,7 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetValue { key } => to_binary(&query_value(deps, key)?),
-        QueryMsg::GetState {} => to_binary(&STATE.load(deps.storage)?),
+        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
         QueryMsg::GetTx { tx_id } => to_binary(&query_tx(deps, tx_id)?),
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
@@ -202,6 +203,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetSendAllUpon {  } => to_binary(&query_send_all_upon(deps)?),
         QueryMsg::GetTestQueue {  } => to_binary(&query_test_queue(deps)?),
     }
+}
+
+fn query_state(deps: Deps) -> StdResult<StateResponse> {
+    
+    let state = STATE.load(deps.storage)?;
+    Ok(match state.done {
+        Some(val) => StateResponse::Done { decided_val: val } ,
+        None => StateResponse::InProgress { state },
+    })
 }
 
 fn query_test_queue(deps: Deps) -> StdResult<TestQueueResponse> {

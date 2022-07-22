@@ -34,7 +34,8 @@ pub struct State {
     pub proofs: Vec<(u32, String, i32)>,
     pub is_first_propose: bool,
     pub is_first_req_ack: bool,
-    pub sent_suggest: bool
+    pub sent_suggest: bool,
+    pub done: Option<String>
 }
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

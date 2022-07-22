@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::ibc_msg::PacketMsg;
+use crate::{ibc_msg::PacketMsg, state::State};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -41,6 +41,16 @@ pub enum ValueResponse {
         value: String
     },
     KeyNotFound {
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum StateResponse {
+    InProgress {
+        state: State
+    },
+    Done {
+        decided_val: String
     }
 }
 
