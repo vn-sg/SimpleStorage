@@ -24,6 +24,21 @@ pub enum PacketMsg {
         val: String,
         view: u32
     },
+    Key2 {
+        val: String,
+        view: u32
+    },
+    Key3 {
+        val: String,
+        view: u32
+    },
+    Lock {
+        val: String,
+        view: u32
+    },
+    Done {
+        val: String
+    },
     WhoAmI { 
         chain_id: u32,
         
@@ -97,6 +112,22 @@ pub struct EchoResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Key1Response {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Key2Response {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Key3Response {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockResponse {
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DoneResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

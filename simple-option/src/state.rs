@@ -35,6 +35,7 @@ pub struct State {
     pub is_first_propose: bool,
     pub is_first_req_ack: bool,
     pub sent_suggest: bool,
+    pub sent_done: bool,
     pub done: Option<String>
 }
 
@@ -99,6 +100,13 @@ pub const TEST_QUEUE: Map<u32, (u32, Vec<PacketMsg>)> = Map::new("test_queue");
 pub const UPON_QUEUE: Map<String, Vec<PacketMsg>> = Map::new("upon_queue");
 pub const SEND_ALL_UPON: Map<u32, Vec<PacketMsg>> = Map::new("send_all_upon");
 
+// Message types to indicate the amount of which received on the same val
+// MessageType: Map<VAL, COUNT>
 pub const ECHO: Map<String, u32> = Map::new("echo");
+pub const KEY1: Map<String, u32> = Map::new("key1");
+pub const KEY2: Map<String, u32> = Map::new("key2");
+pub const KEY3: Map<String, u32> = Map::new("key3");
+pub const LOCK: Map<String, u32> = Map::new("lock");
+pub const DONE: Map<String, u32> = Map::new("done");
 
 

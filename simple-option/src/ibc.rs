@@ -12,11 +12,11 @@ use cosmwasm_std::{
 use crate::contract::{REQUEST_REPLY_ID, SUGGEST_REPLY_ID, PROPOSE_REPLY_ID};
 use crate::ibc_msg::{
     AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse,
-    SuggestResponse, WhoAmIResponse, ProofResponse, MsgQueueResponse, EchoResponse, Key1Response,
+    SuggestResponse, WhoAmIResponse, ProofResponse, MsgQueueResponse, EchoResponse, Key1Response, Key2Response, Key3Response, LockResponse, DoneResponse,
 };
 use crate::msg::{ExecuteMsg};
 use crate::state::{
-    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, SEND_ALL_UPON, ECHO, RECEIVED_PROOF, TEST_QUEUE, TEST,
+    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, SEND_ALL_UPON, ECHO, RECEIVED_PROOF, TEST_QUEUE, TEST, KEY1, KEY2, KEY3, LOCK, DONE,
 };
 
 use crate::ContractError;
@@ -490,18 +490,13 @@ pub fn receive_queue(
                             // First case we should broadcast Echo message
                             if state.lock == 0 || v == state.lock_val {
                                 broadcast = true;
-                                // msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
-                            
-                
                             } else if view > k && k >= state.lock {
                                 // upon open_lock(proofs) == true
                                 // Second case we should broadcast Echo message
                                 if open_lock(&deps, state.proofs)? {
                                     broadcast = true;
-                                    // msgs.extend(send_all_upon_join(&deps, timeout.clone(), echo_packet).unwrap());
                                 }
                             }
-
                             // send_all_upon_join_queue(<propose, k, v, view>)
                             if broadcast {
                                 let echo_packet = PacketMsg::Echo { val: v, view };
@@ -529,7 +524,6 @@ pub fn receive_queue(
                                 }
                             }
                             // send_all_upon_join_queue(<propose, k, v, view>)/
-
 
                         }
                     }
@@ -762,7 +756,237 @@ pub fn receive_queue(
                 Ok(())
 
             },
-            PacketMsg::Key1 { val, view } => Ok(()),
+            PacketMsg::Key1 { val, view } => 
+
+            // Handle Key1
+            {
+                let mut state = STATE.load(deps.storage)?;
+                // ignore messages from other views, other than abort, done and request messages
+                if view != state.view {
+                } else {
+                    // Update local record of key1 messages
+                    let action = |count: Option<u32>| -> StdResult<u32> {
+                        match count {
+                            Some(c) => Ok(c + 1),
+                            None => Ok(1),
+                        }
+                    };
+                    let count = KEY1.update(deps.storage, val.clone(), action)?;
+
+                    // upon receiving from n - f parties with the same val
+                    if count >= state.n - F {
+
+                        // send_all_upon_join_queue(<key2, val, view>)
+                        let key2_packet = PacketMsg::Key2 { val: val.clone(), view };
+                        let channel_ids = get_id_channel_pair(&deps)?;
+
+                        for (chain_id, _channel_id) in &channel_ids {
+                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+                            if highest_request == state.view {
+                                queue[*chain_id as usize].push(key2_packet.clone());
+                            }
+                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
+                            else{
+                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
+                                    match packets {
+                                        Some(mut p) => {
+                                            p.push(key2_packet.clone());
+                                            Ok(p)
+                                        },
+                                        None => Ok(vec!(key2_packet.clone())),
+                                    }
+                                    
+                                };
+                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
+                            }
+                        }
+                        // send_all_upon_join_queue(<key2, val, view>)/
+
+                        if state.key2_val != val {
+                            state.prev_key2 = state.key2 as i32;
+                            state.key2_val = val;
+                            
+                        }
+                        state.key2 = view;
+                        STATE.save(deps.storage, &state)?;
+                    }
+                }
+                Ok(())
+
+            },
+            PacketMsg::Key2 { val, view } => 
+
+            // Handle Key2
+            {
+                let mut state = STATE.load(deps.storage)?;
+                // ignore messages from other views, other than abort, done and request messages
+                if view != state.view {
+                } else {
+                    // Update local record of key1 messages
+                    let action = |count: Option<u32>| -> StdResult<u32> {
+                        match count {
+                            Some(c) => Ok(c + 1),
+                            None => Ok(1),
+                        }
+                    };
+                    let count = KEY2.update(deps.storage, val.clone(), action)?;
+
+                    // upon receiving from n - f parties with the same val
+                    if count >= state.n - F {
+
+                        // send_all_upon_join_queue(<key2, val, view>)
+                        let key3_packet = PacketMsg::Key3 { val: val.clone(), view };
+                        let channel_ids = get_id_channel_pair(&deps)?;
+
+                        for (chain_id, _channel_id) in &channel_ids {
+                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+                            if highest_request == state.view {
+                                queue[*chain_id as usize].push(key3_packet.clone());
+                            }
+                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
+                            else{
+                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
+                                    match packets {
+                                        Some(mut p) => {
+                                            p.push(key3_packet.clone());
+                                            Ok(p)
+                                        },
+                                        None => Ok(vec!(key3_packet.clone())),
+                                    }
+                                    
+                                };
+                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
+                            }
+                        }
+                        // send_all_upon_join_queue(<key3, val, view>)/
+                        
+                        state.key3 = view;
+                        state.key3_val = val;
+                        STATE.save(deps.storage, &state)?;
+                    }
+                }
+                Ok(())
+
+            },
+            PacketMsg::Key3 { val, view } => 
+
+
+            // Handle Key3
+            {
+                let mut state = STATE.load(deps.storage)?;
+                // ignore messages from other views, other than abort, done and request messages
+                if view != state.view {
+                } else {
+                    // Update local record of key1 messages
+                    let action = |count: Option<u32>| -> StdResult<u32> {
+                        match count {
+                            Some(c) => Ok(c + 1),
+                            None => Ok(1),
+                        }
+                    };
+                    let count = KEY3.update(deps.storage, val.clone(), action)?;
+
+                    // upon receiving from n - f parties with the same val
+                    if count >= state.n - F {
+
+                        // send_all_upon_join_queue(<key2, val, view>)
+                        let lock_packet = PacketMsg::Lock { val: val.clone(), view };
+                        let channel_ids = get_id_channel_pair(&deps)?;
+
+                        for (chain_id, _channel_id) in &channel_ids {
+                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+                            if highest_request == state.view {
+                                queue[*chain_id as usize].push(lock_packet.clone());
+                            }
+                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
+                            else{
+                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
+                                    match packets {
+                                        Some(mut p) => {
+                                            p.push(lock_packet.clone());
+                                            Ok(p)
+                                        },
+                                        None => Ok(vec!(lock_packet.clone())),
+                                    }
+                                    
+                                };
+                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
+                            }
+                        }
+                        // send_all_upon_join_queue(<key3, val, view>)/
+                        
+                        state.lock = view;
+                        state.lock_val = val;
+                        STATE.save(deps.storage, &state)?;
+                    }
+                }
+                Ok(())
+
+            },
+            PacketMsg::Lock { val, view } => 
+            
+            // Handle Lock
+            {
+                let mut state = STATE.load(deps.storage)?;
+                // ignore messages from other views, other than abort, done and request messages
+                if view != state.view {
+                } else {
+                    // Update local record of key1 messages
+                    let action = |count: Option<u32>| -> StdResult<u32> {
+                        match count {
+                            Some(c) => Ok(c + 1),
+                            None => Ok(1),
+                        }
+                    };
+                    let count = LOCK.update(deps.storage, val.clone(), action)?;
+
+                    // upon receiving from n - f parties with the same val
+                    if count >= state.n - F && !state.sent_done {
+                        state.sent_done = true;
+                        STATE.save(deps.storage, &state)?;
+
+                        // send <done, val> to every party
+                        let done_packet = PacketMsg::Done { val: val.clone() };
+                        let channel_ids = get_id_channel_pair(&deps)?;
+
+                        // Add Done msg to MsgQueue of every party
+                        for (chain_id, _channel_id) in &channel_ids {
+                            queue[*chain_id as usize].push(done_packet.clone());
+                        }
+                        // send <done, val> to every party /
+
+                    }
+                }
+                Ok(())
+
+            },
+            PacketMsg::Done { val } => 
+
+            // Handle Done
+            {
+                let mut state = STATE.load(deps.storage)?;
+                // Update local record of done messages
+                let action = |count: Option<u32>| -> StdResult<u32> {
+                    match count {
+                        Some(c) => Ok(c + 1),
+                        None => Ok(1),
+                    }
+                };
+                let count = DONE.update(deps.storage, val.clone(), action)?;
+
+                if count > F + 1 {
+                    // TODO: Sent Done
+                }
+
+                // upon receiving from n - f parties with the same val
+                if count >= state.n - F {
+                    // decide and terminate
+                    state.done = Some(val.clone());
+                    STATE.save(deps.storage, &state)?;
+                }
+                
+                Ok(())
+            },
         };
         
         // unwrap the result to handle any errors
@@ -872,7 +1096,11 @@ pub fn ibc_packet_receive(
                 view,
             } => receive_proof(deps, key1, key1_val, prev_key1, view),
             PacketMsg::Echo { val, view} => receive_echo(deps, val, view),
-            PacketMsg::Key1 { val, view } => receive_key1(deps, val, view)
+            PacketMsg::Key1 { val, view } => receive_key1(deps, val, view),
+            PacketMsg::Key2 { val, view } => receive_key2(deps, val, view),
+            PacketMsg::Key3 { val, view } => receive_key3(deps, val, view),
+            PacketMsg::Lock { val, view } => receive_lock(deps, val, view),
+            PacketMsg::Done { val } => receive_done(deps, val),
         }
     })()
     .or_else(|e| {
@@ -883,6 +1111,49 @@ pub fn ibc_packet_receive(
             .set_ack(acknowledgement)
             .add_event(Event::new("ibc").add_attribute("packet", "receive")))
     })
+}
+
+pub fn receive_done(
+    _deps: DepsMut,
+    _val: String,
+) -> StdResult<IbcReceiveResponse> {
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(DoneResponse { }))?;
+    Ok(IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_done"))  
+}
+
+pub fn receive_lock(
+    _deps: DepsMut,
+    _val: String,
+    _view: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(LockResponse { }))?;
+    Ok(IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_lock"))  
+}
+
+pub fn receive_key3(
+    _deps: DepsMut,
+    _val: String,
+    _view: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key3Response { }))?;
+    Ok(IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_key3"))  
+}
+
+pub fn receive_key2(
+    _deps: DepsMut,
+    _val: String,
+    _view: u32,
+) -> StdResult<IbcReceiveResponse> {
+    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key2Response { }))?;
+    Ok(IbcReceiveResponse::new()
+        .set_ack(acknowledgement)
+        .add_attribute("action", "receive_key2"))  
 }
 
 pub fn receive_key1(
@@ -1330,7 +1601,11 @@ pub fn ibc_packet_ack(
             view: _,
         } => Ok(IbcBasicResponse::new()),
         PacketMsg::Echo { val: _, view: _ } => Ok(IbcBasicResponse::new()),
-        PacketMsg::Key1 { val, view } => Ok(IbcBasicResponse::new())
+        PacketMsg::Key1 { val: _, view: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Key2 { val: _, view: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Key3 { val: _, view: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Lock { val: _, view: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Done { val: _ } => Ok(IbcBasicResponse::new()),
     }
 }
 

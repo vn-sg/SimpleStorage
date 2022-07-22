@@ -1,18 +1,25 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, IbcTimeout, MessageInfo, Order, Response, StdResult, IbcMsg, Reply, StdError, SubMsg,
+    to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
+    StdError, StdResult, SubMsg,
 };
 
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::ibc::{view_change, PACKET_LIFETIME, get_timeout};
+use crate::ibc::{get_timeout, view_change, PACKET_LIFETIME};
 use crate::ibc_msg::PacketMsg;
 // use crate::ibc_msg::PacketMsg;
-use crate::msg::{ChannelsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ValueResponse, HighestReqResponse, ReceivedSuggestResponse, SendAllUponResponse, TestQueueResponse, StateResponse};
-use crate::state::{TEST, SEND_ALL_UPON, TEST_QUEUE};
-use crate::{state::{State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, STATE, TXS, VARS, RECEIVED_SUGGEST, RECEIVED_PROOF}};
+use crate::msg::{
+    ChannelsResponse, ExecuteMsg, HighestReqResponse, InstantiateMsg, QueryMsg,
+    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, ValueResponse,
+};
+use crate::state::{
+    State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE, TXS,
+    VARS,
+};
+use crate::state::{SEND_ALL_UPON, TEST, TEST_QUEUE};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -21,7 +28,6 @@ pub const REQUEST_REPLY_ID: u64 = 100;
 pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -47,17 +53,16 @@ pub fn instantiate(
         key2_val: msg.input.clone(),
         key3_val: msg.input.clone(),
         lock_val: msg.input.clone(),
-
         prev_key1: -1,
         prev_key2: -1,
-
         suggestions: Vec::new(),
         key2_proofs: Vec::new(),
         proofs: Vec::new(),
         is_first_propose: true,
         is_first_req_ack: true,
         sent_suggest: false,
-        done: None
+        done: None,
+        sent_done: false,
     };
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -102,6 +107,7 @@ pub fn handle_execute_input(
 
     // Initialization
     state.done = None;
+    state.sent_done = false;
     state.view = 0;
     state.cur_view = 0;
     state.primary = 1;
@@ -134,7 +140,7 @@ pub fn handle_execute_input(
 
     // By calling view_change(), Request messages will be delivered to all chains that we established a channel with
     view_change(deps, timeout.clone())
-    
+
     // broadcast message
 }
 
@@ -153,14 +159,14 @@ pub fn execute(
                 .add_attribute("action", "execute")
                 .add_attribute("msg_type", "get");
             Ok(res)
-        },
+        }
         ExecuteMsg::Get { key: _ } => {
             // Plain response
             let res = Response::new()
                 .add_attribute("action", "execute")
                 .add_attribute("msg_type", "get");
             Ok(res)
-        },
+        }
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
     }
 
@@ -198,45 +204,50 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetTx { tx_id } => to_binary(&query_tx(deps, tx_id)?),
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
-        QueryMsg::GetHighestReq { } => to_binary(&query_highest_request(deps)?),
-        QueryMsg::GetReceivedSuggest {  } => to_binary(&query_received_suggest(deps)?),
-        QueryMsg::GetSendAllUpon {  } => to_binary(&query_send_all_upon(deps)?),
-        QueryMsg::GetTestQueue {  } => to_binary(&query_test_queue(deps)?),
+        QueryMsg::GetHighestReq {} => to_binary(&query_highest_request(deps)?),
+        QueryMsg::GetReceivedSuggest {} => to_binary(&query_received_suggest(deps)?),
+        QueryMsg::GetSendAllUpon {} => to_binary(&query_send_all_upon(deps)?),
+        QueryMsg::GetTestQueue {} => to_binary(&query_test_queue(deps)?),
     }
 }
 
 fn query_state(deps: Deps) -> StdResult<StateResponse> {
-    
     let state = STATE.load(deps.storage)?;
     Ok(match state.done {
-        Some(val) => StateResponse::Done { decided_val: val } ,
+        Some(val) => StateResponse::Done { decided_val: val },
         None => StateResponse::InProgress { state },
     })
 }
 
 fn query_test_queue(deps: Deps) -> StdResult<TestQueueResponse> {
-    let req: StdResult<Vec<_>> = TEST_QUEUE.range(deps.storage, None, None, Order::Ascending).collect();
-    Ok(TestQueueResponse {
-        test_queue: req?,
-    })
+    let req: StdResult<Vec<_>> = TEST_QUEUE
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(TestQueueResponse { test_queue: req? })
 }
 
 fn query_send_all_upon(deps: Deps) -> StdResult<SendAllUponResponse> {
-    let req: StdResult<Vec<_>> = SEND_ALL_UPON.range(deps.storage, None, None, Order::Ascending).collect();
+    let req: StdResult<Vec<_>> = SEND_ALL_UPON
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
     Ok(SendAllUponResponse {
         send_all_upon: req?,
     })
 }
 
 fn query_received_suggest(deps: Deps) -> StdResult<ReceivedSuggestResponse> {
-    let req: StdResult<Vec<_>> = RECEIVED_SUGGEST.range(deps.storage, None, None, Order::Ascending).collect();
+    let req: StdResult<Vec<_>> = RECEIVED_SUGGEST
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
     Ok(ReceivedSuggestResponse {
         received_suggest: req?,
     })
 }
 
 fn query_highest_request(deps: Deps) -> StdResult<HighestReqResponse> {
-    let req: StdResult<Vec<_>> = HIGHEST_REQ.range(deps.storage, None, None, Order::Ascending).collect();
+    let req: StdResult<Vec<_>> = HIGHEST_REQ
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
     Ok(HighestReqResponse {
         highest_request: req?,
     })
@@ -244,8 +255,8 @@ fn query_highest_request(deps: Deps) -> StdResult<HighestReqResponse> {
 
 fn query_test(deps: Deps) -> StdResult<Vec<(u32, Vec<IbcMsg>)>> {
     let test: StdResult<Vec<_>> = TEST
-    .range(deps.storage, None, None, Order::Ascending)
-    .collect();
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
 
     Ok(test?)
 }
@@ -296,7 +307,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 
 fn _handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
     // Upon sucessfully called the broadcast of Request Messages
-    // Load the state 
+    // Load the state
     let state = STATE.load(deps.storage)?;
     if state.chain_id != state.primary {
         // Upon highest_request[primary] = view
@@ -320,25 +331,22 @@ fn _handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> Std
                 timeout: timeout.clone(),
             };
             let submsg: SubMsg = SubMsg::reply_on_success(msg, SUGGEST_REPLY_ID);
-            
+
             // construct Response and put Suggest message in the query on the fly
             return Ok(Response::new()
                 .add_submessage(submsg)
-                .add_attribute("action", "send_suggest2primary".to_string()))
-
+                .add_attribute("action", "send_suggest2primary".to_string()));
         }
-    
     }
 
     // TODO: Add ops for reply of Request message
     Ok(Response::new())
     // Add consecutive submessages
-    
 }
 
 fn handle_suggest_reply(_deps: DepsMut, _timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
     // Upon sucessfully delivered the Suggest Message
-    // Load the state 
+    // Load the state
     // let _state = STATE.load(deps.storage)?;
     let res: Response = Response::new();
 
@@ -384,7 +392,7 @@ mod tests {
         let msg = ExecuteMsg::Set {
             key: "TestKey".to_string(),
             // value: "value_of_TestKey".to_string(),
-            value: 0
+            value: 0,
         };
         let _res = execute(deps.as_mut(), mock_env(), info, msg.clone()).unwrap();
 
