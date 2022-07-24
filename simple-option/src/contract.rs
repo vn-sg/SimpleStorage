@@ -17,9 +17,9 @@ use crate::msg::{
 };
 use crate::state::{
     State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE, TXS,
-    VARS,
+    VARS, TEST,
 };
-use crate::state::{SEND_ALL_UPON, TEST, TEST_QUEUE};
+use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
