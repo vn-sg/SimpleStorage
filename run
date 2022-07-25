@@ -372,7 +372,7 @@ execute1() {
   ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
 
   # execute input message
-  EXEC_MSG0='{ "input": { "value": "0"} }'
+  EXEC_MSG0='{ "input": { "value": "00000"} }'
   EXEC_MSG1='{ "input": { "value": "1"} }'
 
   set -x
@@ -461,12 +461,12 @@ if [ $1 = "u1" ]; then
 fi
 
 # upload to 3 chains command
-if [ $1 = "upload3" ]; then 
+if [ $1 = "u3" ]; then 
   upload_and_instantiate3
 fi
 
 # upload to 4 chains command
-if [ $1 = "upload4" ]; then 
+if [ $1 = "u4" ]; then 
   upload_and_instantiate4
 fi
 

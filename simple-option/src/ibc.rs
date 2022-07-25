@@ -16,7 +16,7 @@ use crate::ibc_msg::{
 };
 use crate::msg::{ExecuteMsg};
 use crate::state::{
-    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, SEND_ALL_UPON, ECHO, RECEIVED_PROOF, KEY1, KEY2, KEY3, LOCK, DONE,
+    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, SEND_ALL_UPON, ECHO, RECEIVED_PROOF, TEST_QUEUE, TEST, KEY1, KEY2, KEY3, LOCK, DONE,
 };
 
 use crate::ContractError;
@@ -537,8 +537,8 @@ pub fn receive_queue(
                 // Handle Request
                 {
                     let mut state = STATE.load(deps.storage)?;
-                    state.key2_proofs.push((state.current_tx_id,"received_request".to_string(), chain_id as i32));
-                    STATE.save(deps.storage, &state)?;
+                    // state.key2_proofs.push((state.current_tx_id,"received_request".to_string(), chain_id as i32));
+                    // STATE.save(deps.storage, &state)?;
                     // Update stored highest_request for that blockchain accordingly
                     let highest_request = HIGHEST_REQ.load(deps.storage, chain_id)?;
                     if highest_request < view {
@@ -972,7 +972,7 @@ pub fn receive_queue(
                     }
                 };
                 let count = DONE.update(deps.storage, val.clone(), action)?;
-                
+
                 // Currently we don't have enough nodes to test with F + 1
                 if count >= F + 1 - 1{
                     if !state.sent_done {
@@ -1014,12 +1014,12 @@ pub fn receive_queue(
     let timeout = get_timeout(env);
 
     //// TESTING /////
-    // let mut state = STATE.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
     for (chain_id, msg_queue) in queue.iter().enumerate() {
         //// TESTING /////
-        // TEST_QUEUE.save(deps.storage, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
-        // state.current_tx_id += 1;
-        // STATE.save(deps.storage, &state)?;
+        TEST_QUEUE.save(deps.storage, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
+        state.current_tx_id += 1;
+        STATE.save(deps.storage, &state)?;
         if chain_id != state.chain_id as usize {
             
             // When chain wish to send some msgs to dest chain
@@ -1039,8 +1039,7 @@ pub fn receive_queue(
     
     // Add to Response if there are pending messages
     if msgs.len() > 0 {
-        //// TESTING ////
-        // TEST.save(deps.storage, state.current_tx_id, &msgs)?;
+        TEST.save(deps.storage, state.current_tx_id, &msgs)?;
         // state.current_tx_id += 1;
         STATE.save(deps.storage, &state)?;
         res = res.add_messages(msgs);
