@@ -1,18 +1,18 @@
 
 use cosmwasm_std::{
-    StdResult, DepsMut, Order, Env, IbcReceiveResponse, to_binary, IbcMsg
+    StdResult, DepsMut, Order, Env, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage
 };
 
 use std::convert::TryInto;
 
 
-use crate::utils::{get_id_channel_pair, F, PACKET_LIFETIME, get_timeout};
+use crate::ContractError;
+use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, F, PACKET_LIFETIME, get_timeout};
 use crate::ibc_msg::{PacketMsg,AcknowledgementMsg, MsgQueueResponse};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
     TEST_QUEUE, RECEIVED_PROOF, TEST
 };
-
 
 
 pub fn receive_queue(
@@ -258,58 +258,19 @@ pub fn receive_queue(
 
             // Handle Echo
             {
-                let mut state = STATE.load(deps.storage)?;
+                let key1_packet = PacketMsg::Key1 { val: val.clone(), view };
+
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    // Update local record of echo messages
-                    let action = |count: Option<u32>| -> StdResult<u32> {
-                        match count {
-                            Some(c) => Ok(c + 1),
-                            None => Ok(1),
-                        }
-                    };
-                    let count = ECHO.update(deps.storage, val.clone(), action)?;
-
-                    // upon receiving from n - f parties with the same val
-                    if count >= state.n - F {
-
-                        // send_all_upon_join_queue(<key1, val, view>)
-                        let key1_packet = PacketMsg::Key1 { val: val.clone(), view };
-                        let channel_ids = get_id_channel_pair(&deps)?;
-
-                        for (chain_id, _channel_id) in &channel_ids {
-                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
-                            if highest_request == state.view {
-                                queue[*chain_id as usize].push(key1_packet.clone());
-                            }
-                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
-                            else{
-                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
-                                    match packets {
-                                        Some(mut p) => {
-                                            p.push(key1_packet.clone());
-                                            Ok(p)
-                                        },
-                                        None => Ok(vec!(key1_packet.clone())),
-                                    }
-                                    
-                                };
-                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
-                            }
-                        }
-                        // send_all_upon_join_queue(<key1, val, view>)/
-
-                        if state.key1_val != val {
-                            state.prev_key1 = state.key1 as i32;
-                            state.key1_val = val;
-                            
-                        }
-                        state.key1 = view;
-                        STATE.save(deps.storage, &state)?;
-                    
+                    message_transfer_hop(deps.storage, val.clone(), view, & mut queue, ECHO, key1_packet.clone())?;
+                    let mut state = STATE.load(deps.storage)?;
+                    if state.key1_val != val {
+                        state.prev_key1 = state.key2 as i32;
+                        state.key1_val = val;                    
                     }
-
+                    state.key1 = view;
+                    STATE.save(deps.storage, &state)?;    
                 }
                 Ok(())
 
@@ -318,110 +279,34 @@ pub fn receive_queue(
 
             // Handle Key1
             {
-                let mut state = STATE.load(deps.storage)?;
+                let key2_packet = PacketMsg::Key2 { val: val.clone(), view };
+
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    // Update local record of key1 messages
-                    let action = |count: Option<u32>| -> StdResult<u32> {
-                        match count {
-                            Some(c) => Ok(c + 1),
-                            None => Ok(1),
-                        }
-                    };
-                    let count = KEY1.update(deps.storage, val.clone(), action)?;
-
-                    // upon receiving from n - f parties with the same val
-                    if count >= state.n - F {
-
-                        // send_all_upon_join_queue(<key2, val, view>)
-                        let key2_packet = PacketMsg::Key2 { val: val.clone(), view };
-                        let channel_ids = get_id_channel_pair(&deps)?;
-
-                        for (chain_id, _channel_id) in &channel_ids {
-                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
-                            if highest_request == state.view {
-                                queue[*chain_id as usize].push(key2_packet.clone());
-                            }
-                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
-                            else{
-                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
-                                    match packets {
-                                        Some(mut p) => {
-                                            p.push(key2_packet.clone());
-                                            Ok(p)
-                                        },
-                                        None => Ok(vec!(key2_packet.clone())),
-                                    }
-                                    
-                                };
-                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
-                            }
-                        }
-                        // send_all_upon_join_queue(<key2, val, view>)/
-
-                        if state.key2_val != val {
-                            state.prev_key2 = state.key2 as i32;
-                            state.key2_val = val;
-                            
-                        }
-                        state.key2 = view;
-                        STATE.save(deps.storage, &state)?;
+                    message_transfer_hop(deps.storage, val.clone(), view, & mut queue, KEY1, key2_packet.clone())?;
+                    let mut state = STATE.load(deps.storage)?;
+                    if state.key2_val != val {
+                        state.prev_key2 = state.key2 as i32;
+                        state.key2_val = val;                    
                     }
+                    state.key2 = view;
+                    STATE.save(deps.storage, &state)?;    
                 }
                 Ok(())
-
             },
             PacketMsg::Key2 { val, view } => 
 
             // Handle Key2
             {
-                let mut state = STATE.load(deps.storage)?;
-                // ignore messages from other views, other than abort, done and request messages
+                let key3_packet = PacketMsg::Key3 { val: val.clone(), view };
                 if view != state.view {
                 } else {
-                    // Update local record of key2 messages
-                    let action = |count: Option<u32>| -> StdResult<u32> {
-                        match count {
-                            Some(c) => Ok(c + 1),
-                            None => Ok(1),
-                        }
-                    };
-                    let count = KEY2.update(deps.storage, val.clone(), action)?;
-
-                    // upon receiving from n - f parties with the same val
-                    if count >= state.n - F {
-
-                        // send_all_upon_join_queue(<key3, val, view>)
-                        let key3_packet = PacketMsg::Key3 { val: val.clone(), view };
-                        let channel_ids = get_id_channel_pair(&deps)?;
-
-                        for (chain_id, _channel_id) in &channel_ids {
-                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
-                            if highest_request == state.view {
-                                queue[*chain_id as usize].push(key3_packet.clone());
-                            }
-                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
-                            else{
-                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
-                                    match packets {
-                                        Some(mut p) => {
-                                            p.push(key3_packet.clone());
-                                            Ok(p)
-                                        },
-                                        None => Ok(vec!(key3_packet.clone())),
-                                    }
-                                    
-                                };
-                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
-                            }
-                        }
-                        // send_all_upon_join_queue(<key3, val, view>)/
-                        
-                        state.key3 = view;
-                        state.key3_val = val;
-                        STATE.save(deps.storage, &state)?;
-                    }
+                    message_transfer_hop(deps.storage, val.clone(), view, & mut queue, KEY2, key3_packet.clone())?;
+                    let mut state = STATE.load(deps.storage)?;
+                    state.key3 = view;
+                    state.key3_val = val.clone();
+                    STATE.save(deps.storage, &state)?;    
                 }
                 Ok(())
 
@@ -430,55 +315,16 @@ pub fn receive_queue(
 
             // Handle Key3
             {
-                let mut state = STATE.load(deps.storage)?;
-                // ignore messages from other views, other than abort, done and request messages
+                let lock_packet = PacketMsg::Lock { val: val.clone(), view }; 
                 if view != state.view {
                 } else {
-                    // Update local record of key3 messages
-                    let action = |count: Option<u32>| -> StdResult<u32> {
-                        match count {
-                            Some(c) => Ok(c + 1),
-                            None => Ok(1),
-                        }
-                    };
-                    let count = KEY3.update(deps.storage, val.clone(), action)?;
-
-                    // upon receiving from n - f parties with the same val
-                    if count >= state.n - F {
-
-                        // send_all_upon_join_queue(<lock, val, view>)
-                        let lock_packet = PacketMsg::Lock { val: val.clone(), view };
-                        let channel_ids = get_id_channel_pair(&deps)?;
-
-                        for (chain_id, _channel_id) in &channel_ids {
-                            let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
-                            if highest_request == state.view {
-                                queue[*chain_id as usize].push(lock_packet.clone());
-                            }
-                            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
-                            else{
-                                let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
-                                    match packets {
-                                        Some(mut p) => {
-                                            p.push(lock_packet.clone());
-                                            Ok(p)
-                                        },
-                                        None => Ok(vec!(lock_packet.clone())),
-                                    }
-                                    
-                                };
-                                SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
-                            }
-                        }
-                        // send_all_upon_join_queue(<lock, val, view>)/
-                        
-                        state.lock = view;
-                        state.lock_val = val;
-                        STATE.save(deps.storage, &state)?;
-                    }
+                    message_transfer_hop(deps.storage, val.clone(), view, & mut queue, KEY3, lock_packet.clone())?;
+                    let mut state = STATE.load(deps.storage)?;
+                    state.lock = view;
+                    state.lock_val = val;
+                    STATE.save(deps.storage, &state)?;    
                 }
                 Ok(())
-
             },
             PacketMsg::Lock { val, view } => 
             
@@ -515,7 +361,6 @@ pub fn receive_queue(
                     }
                 }
                 Ok(())
-
             },
             PacketMsg::Done { val } => 
 
@@ -641,4 +486,51 @@ fn open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool>
     } else {
         Ok(false)
     }
+}
+
+fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
+     queue: &mut Vec<Vec<PacketMsg>>, 
+     keys: cw_storage_plus::Map<String, u32>, msg_to_send: PacketMsg) -> Result<(), StdError> {
+    let state = STATE.load(storage)?;
+    // ignore messages from other views, other than abort, done and request messages
+    if view != state.view {
+    } else {
+        // Update local record of key3 messages
+        let action = |count: Option<u32>| -> StdResult<u32> {
+            match count {
+                Some(c) => Ok(c + 1),
+                None => Ok(1),
+            }
+        };
+        let count = keys.update(storage, val.clone(), action)?;
+
+        // upon receiving from n - f parties with the same val
+        if count >= state.n - F {
+
+            // send_all_upon_join_queue TODO change to send_all_upon_join_queue
+            let channel_ids = get_id_channel_pair_from_storage(storage)?;
+            for (chain_id, _channel_id) in &channel_ids {
+                let highest_request = HIGHEST_REQ.load(storage, chain_id.clone())?;
+                if highest_request == state.view {
+                    queue[*chain_id as usize].push(msg_to_send.clone());
+                }
+                // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
+                else{
+                    let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
+                        match packets {
+                            Some(mut p) => {
+                                p.push(msg_to_send.clone());
+                                Ok(p)
+                            },
+                            None => Ok(vec!(msg_to_send.clone())),
+                        }
+                        
+                    };
+                    SEND_ALL_UPON.update(storage, *chain_id, action)?;
+                }
+            }
+            // send_all_upon_join_queue TODO change to send_all_upon_join_queue
+        }
+    }
+    Ok(())
 }
