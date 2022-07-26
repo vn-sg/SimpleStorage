@@ -8,7 +8,8 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::ibc::{get_timeout, view_change, PACKET_LIFETIME};
+use crate::utils::{get_timeout, F};
+use crate::view_change::{view_change};
 use crate::ibc_msg::PacketMsg;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -84,7 +85,7 @@ pub fn handle_execute_input(
     input: String,
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
-    let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
+    let timeout: IbcTimeout = get_timeout(env);
 
     // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
     let all_chain_ids: StdResult<Vec<_>> = CHANNELS
