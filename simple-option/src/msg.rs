@@ -13,20 +13,15 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Set { key: String, value: u32 },
-    Get { key: String },
     Input { value: String },
     ForceAbort {},
-    Anort {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// GetValue querys value for given key, GetState returns the current state, GetTx returns tx with tx_id
-    GetValue { key: String },
     GetState { },
-    GetTx { tx_id: String },
     GetChannels { },
     GetTest { },
     GetHighestReq { },

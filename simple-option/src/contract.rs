@@ -155,20 +155,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Set { key: _, value: _ } => {
-            // Plain response
-            let res = Response::new()
-                .add_attribute("action", "execute")
-                .add_attribute("msg_type", "get");
-            Ok(res)
-        }
-        ExecuteMsg::Get { key: _ } => {
-            // Plain response
-            let res = Response::new()
-                .add_attribute("action", "execute")
-                .add_attribute("msg_type", "get");
-            Ok(res)
-        }
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
         ExecuteMsg::ForceAbort {  } => {
             //TODO add abort timestamp validation and start new view
@@ -213,9 +199,7 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetValue { key } => to_binary(&query_value(deps, key)?),
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetTx { tx_id } => to_binary(&query_tx(deps, tx_id)?),
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
         QueryMsg::GetHighestReq {} => to_binary(&query_highest_request(deps)?),
@@ -283,20 +267,6 @@ fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
     Ok(ChannelsResponse {
         port_chan_pair: channels?,
     })
-}
-
-fn query_tx(deps: Deps, tx_id: String) -> StdResult<Tx> {
-    let tx_id = tx_id.parse::<u32>().unwrap();
-    let tx = TXS.may_load(deps.storage, tx_id)?;
-    match tx {
-        Some(tx) => Ok(tx),
-        None => Ok(Tx {
-            msg: ExecuteMsg::Get {
-                key: "-1".to_string(),
-            },
-            no_of_votes: u32::MAX,
-        }),
-    }
 }
 
 fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {

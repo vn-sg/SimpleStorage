@@ -741,47 +741,6 @@ pub fn receive_propose(
     }
 }
 
-pub fn try_get(deps: DepsMut, key: String, tx_id: u32) -> StdResult<IbcReceiveResponse> {
-    // let value = state.variables[&key].clone();
-    let value = VARS.may_load(deps.storage, &key)?.unwrap();
-
-    let response = CommitResponse { tx_id };
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
-
-    // send response along with the key and value of the variable
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "commit")
-        .add_attribute("msg", "Get")
-        .add_attribute("key", key)
-        .add_attribute("value", value))
-}
-
-pub fn try_set(
-    deps: DepsMut,
-    key: String,
-    value: String,
-    tx_id: u32,
-) -> StdResult<IbcReceiveResponse> {
-    // let mut state = STATE.load(deps.storage)?;
-    let action = |_| -> StdResult<String> { Ok(value.clone()) };
-    VARS.update(deps.storage, &key, action)?;
-    // STATE.save(deps.storage, &state)?;
-
-    let response = CommitResponse {
-        tx_id: tx_id.clone(),
-    };
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
-
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "commit")
-        .add_attribute("msg", "Set")
-        .add_attribute("tx_id", tx_id.to_string())
-        .add_attribute("key", key)
-        .add_attribute("value", value))
-}
-
 // processes PacketMsg::WhoAmI
 fn receive_who_am_i(
     deps: DepsMut,
