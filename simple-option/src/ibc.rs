@@ -357,6 +357,7 @@ pub fn ibc_packet_receive(
             PacketMsg::Key3 { val, view } => receive_key3(deps, val, view),
             PacketMsg::Lock { val, view } => receive_lock(deps, val, view),
             PacketMsg::Done { val } => receive_done(deps, val),
+            PacketMsg::Abort { view, chain_id } => todo!()
         }
     })()
     .or_else(|e| {
@@ -805,7 +806,7 @@ fn receive_who_am_i(
     // let action = |_| -> StdResult<u32> { Ok(0) };
     // HIGHEST_REQ.update(deps.storage, chain_id, action)?;
     // initialize the highest_request of that chain
-    HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
+    // HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
 
     let response = WhoAmIResponse {};
     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
@@ -862,6 +863,7 @@ pub fn ibc_packet_ack(
         PacketMsg::Key3 { val: _, view: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::Lock { val: _, view: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::Done { val: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::Abort { view, chain_id } => Ok(IbcBasicResponse::new()),
     }
 }
 

@@ -7,11 +7,12 @@ use std::convert::TryInto;
 
 
 use crate::ContractError;
-use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, F, PACKET_LIFETIME, get_timeout};
+use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
+    F, PACKET_LIFETIME, get_timeout, NUMBER_OF_NODES};
 use crate::ibc_msg::{PacketMsg,AcknowledgementMsg, MsgQueueResponse};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-    TEST_QUEUE, RECEIVED_PROOF, TEST
+    TEST_QUEUE, RECEIVED_PROOF, TEST, HIGHEST_ABORT
 };
 
 
@@ -363,7 +364,6 @@ pub fn receive_queue(
                 Ok(())
             },
             PacketMsg::Done { val } => 
-
             // Handle Done
             {
                 let mut state = STATE.load(deps.storage)?;
@@ -404,7 +404,11 @@ pub fn receive_queue(
                 }
                 
                 Ok(())
-            },
+            }, 
+            PacketMsg::Abort { view, chain_id } => 
+            {
+                handle_abort(deps.storage, view, chain_id)
+            }
         };
         
         // unwrap the result to handle any errors
@@ -534,3 +538,48 @@ fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
     }
     Ok(())
 }
+
+pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) -> Result<(), StdError> {
+    let mut state = STATE.load(storage)?;
+    if HIGHEST_ABORT.load(storage, sender_chain_id)? < view {
+        HIGHEST_ABORT.update(storage, sender_chain_id, |mut option| -> StdResult<u32> {
+            match option {
+                Some(_) => Ok(view),
+                None => Ok(view),
+            }
+        });
+
+        let highest_abort_vector_pair: StdResult<Vec<_>> = HIGHEST_ABORT
+            .range(storage, None, None, Order::Ascending)
+            .collect();
+        let mut vector_values = match highest_abort_vector_pair {
+            Ok(vec) => { 
+                let temp = vec.iter().map(|(_key, value)| value.clone()).collect::<Vec<u32>>();
+                temp
+            }
+            Err(_) => return Err(StdError::GenericErr { msg: "Error nth".to_string()}),
+        };
+        vector_values.sort();
+        
+        let u = vector_values[ (F+1) as usize];
+        if u > HIGHEST_ABORT.load(storage, state.chain_id)? {
+            
+            HIGHEST_ABORT.update(storage, sender_chain_id, |mut option| -> StdResult<u32> {
+                match option {
+                    Some(_) => Ok(u),
+                    None => Ok(u),
+                }
+            });
+        }
+
+        let w = vector_values[(NUMBER_OF_NODES-F) as usize];
+        if w >= state.view {
+            state.view = w + 1;
+            STATE.save(storage, &state);
+        }
+
+    }
+    Ok(())
+}
+
+

@@ -13,6 +13,7 @@ use crate::state::{
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
 /// Setting up constant
+pub const NUMBER_OF_NODES: u32 = 4;
 pub const F: u32 = 1;
 pub const IBC_APP_VERSION: &str = "simple_storage";
 

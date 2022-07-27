@@ -64,6 +64,10 @@ pub enum PacketMsg {
         key1_val: String,
         prev_key1: i32,
         view: u32
+    },
+    Abort {
+        view: u32,
+        chain_id: u32,
     }
 }
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
