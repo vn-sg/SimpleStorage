@@ -15,7 +15,8 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Set { key: String, value: u32 },
     Get { key: String },
-    Input { value: String }
+    Input { value: String },
+    Abort {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

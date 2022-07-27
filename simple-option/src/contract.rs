@@ -10,6 +10,7 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::utils::{get_timeout, F};
 use crate::view_change::{view_change};
+use crate::queue_handler::{handle_abort};
 use crate::ibc_msg::PacketMsg;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -169,6 +170,18 @@ pub fn execute(
             Ok(res)
         }
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
+        ExecuteMsg::Abort {  } => {
+            //TODO add abort timestamp validation and start new view
+            let mut state = STATE.load(deps.storage)?;
+            let result = handle_abort(deps.storage, state.view, state.chain_id);
+            let response = Response::new()
+                .add_attribute("action", "execute")
+                .add_attribute("msg_type", "get");
+            match result {
+                Ok(_) => Ok(response),
+                Err(error_msg) => Err(ContractError::CustomError { val: error_msg.to_string() }),
+            }
+        }
     }
 
     // let channel_ids = state.channel_ids.clone();

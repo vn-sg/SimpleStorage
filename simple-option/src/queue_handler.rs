@@ -542,12 +542,12 @@ fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
 pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     if HIGHEST_ABORT.load(storage, sender_chain_id)? < view {
-        HIGHEST_ABORT.update(storage, sender_chain_id, |mut option| -> StdResult<u32> {
+        HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<u32> {
             match option {
-                Some(_) => Ok(view),
+                Some(_val) => Ok(view),
                 None => Ok(view),
             }
-        });
+        })?;
 
         let highest_abort_vector_pair: StdResult<Vec<_>> = HIGHEST_ABORT
             .range(storage, None, None, Order::Ascending)
@@ -564,18 +564,18 @@ pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) 
         let u = vector_values[ (F+1) as usize];
         if u > HIGHEST_ABORT.load(storage, state.chain_id)? {
             
-            HIGHEST_ABORT.update(storage, sender_chain_id, |mut option| -> StdResult<u32> {
+            HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<u32> {
                 match option {
-                    Some(_) => Ok(u),
+                    Some(_val) => Ok(u),
                     None => Ok(u),
                 }
-            });
+            })?;
         }
 
         let w = vector_values[(NUMBER_OF_NODES-F) as usize];
         if w >= state.view {
             state.view = w + 1;
-            STATE.save(storage, &state);
+            STATE.save(storage, &state)?;
         }
 
     }
