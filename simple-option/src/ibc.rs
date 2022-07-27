@@ -740,18 +740,7 @@ pub fn receive_propose(
         Ok(res.add_submessages(msgs))
     }
 }
-pub fn receive_commit(
-    deps: DepsMut,
-    _caller: String,
-    msg: ExecuteMsg,
-    tx_id: u32,
-) -> StdResult<IbcReceiveResponse> {
-    match msg {
-        ExecuteMsg::Set { key, value } => try_set(deps, key, value.to_string(), tx_id),
-        ExecuteMsg::Get { key } => try_get(deps, key, tx_id),
-        ExecuteMsg::Input { value: _ } => todo!(),
-    }
-}
+
 pub fn try_get(deps: DepsMut, key: String, tx_id: u32) -> StdResult<IbcReceiveResponse> {
     // let value = state.variables[&key].clone();
     let value = VARS.may_load(deps.storage, &key)?.unwrap();

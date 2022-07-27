@@ -170,7 +170,7 @@ pub fn execute(
             Ok(res)
         }
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
-        ExecuteMsg::Abort {  } => {
+        ExecuteMsg::ForceAbort {  } => {
             //TODO add abort timestamp validation and start new view
             let mut state = STATE.load(deps.storage)?;
             let result = handle_abort(deps.storage, state.view, state.chain_id);

@@ -16,7 +16,8 @@ pub enum ExecuteMsg {
     Set { key: String, value: u32 },
     Get { key: String },
     Input { value: String },
-    Abort {},
+    ForceAbort {},
+    Anort {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
