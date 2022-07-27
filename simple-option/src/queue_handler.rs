@@ -541,11 +541,11 @@ fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
 
 pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
-    if HIGHEST_ABORT.load(storage, sender_chain_id)? < view {
-        HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<u32> {
+    if ((HIGHEST_ABORT.load(storage, sender_chain_id)? + 1) as u32)< (view+1) {
+        HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
             match option {
-                Some(_val) => Ok(view),
-                None => Ok(view),
+                Some(_val) => Ok(view as i32),
+                None => Ok(view as i32),
             }
         })?;
 
@@ -554,27 +554,28 @@ pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) 
             .collect();
         let mut vector_values = match highest_abort_vector_pair {
             Ok(vec) => { 
-                let temp = vec.iter().map(|(_key, value)| value.clone()).collect::<Vec<u32>>();
+                let temp = vec.iter().map(|(_key, value)| value.clone()).collect::<Vec<i32>>();
                 temp
             }
             Err(_) => return Err(StdError::GenericErr { msg: "Error nth".to_string()}),
         };
         vector_values.sort();
         
-        let u = vector_values[ (F+1) as usize];
+        let u = vector_values[ (F+1) as usize]; 
         if u > HIGHEST_ABORT.load(storage, state.chain_id)? {
-            
-            HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<u32> {
-                match option {
-                    Some(_val) => Ok(u),
-                    None => Ok(u),
-                }
-            })?;
+            if u >= -1 {
+                HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
+                    match option {
+                        Some(_val) => Ok(u),
+                        None => Ok(u),
+                    }
+                })?;
+            }
         }
 
         let w = vector_values[(NUMBER_OF_NODES-F) as usize];
-        if w >= state.view {
-            state.view = w + 1;
+        if (w+1) as u32 >= state.view {
+            state.view = (w + 1) as u32;
             STATE.save(storage, &state)?;
         }
 

@@ -73,7 +73,7 @@ pub fn instantiate(
     // initialize the highest_request of oneself
     HIGHEST_REQ.save(deps.storage, msg.chain_id, &0)?;
     // initialize the highest_abort of oneself
-    HIGHEST_ABORT.save(deps.storage, msg.chain_id, &0)?;
+    HIGHEST_ABORT.save(deps.storage, msg.chain_id, &-1)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -96,7 +96,7 @@ pub fn handle_execute_input(
     for chain_id in all_chain_ids {
         HIGHEST_REQ.save(deps.storage, chain_id, &0)?;
         // Resetting highest_abort
-        HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
+        HIGHEST_ABORT.save(deps.storage, chain_id, &-1)?;
         RECEIVED_SUGGEST.save(deps.storage, chain_id, &false)?;
         RECEIVED_PROOF.save(deps.storage, chain_id, &false)?;
     }
