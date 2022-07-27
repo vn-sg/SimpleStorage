@@ -5,8 +5,6 @@ use cosmwasm_std::{
 
 use std::convert::TryInto;
 
-
-use crate::ContractError;
 use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
     F, PACKET_LIFETIME, get_timeout, NUMBER_OF_NODES};
 use crate::ibc_msg::{PacketMsg,AcknowledgementMsg, MsgQueueResponse};
@@ -237,21 +235,25 @@ pub fn receive_queue(
                     else { None }
                 });
                 let chain_id = chain_id_res.unwrap();
-                // Update the state
-                RECEIVED_PROOF.save(deps.storage, chain_id, &true)?;
+                let received_proof = RECEIVED_PROOF.load(deps.storage, chain_id)?;
+                if !received_proof {
+                    // Update the state
+                    RECEIVED_PROOF.save(deps.storage, chain_id, &true)?;
+                    
+                    if view > key1 && key1 as i32 > prev_key1 {
+                        let mut state = STATE.load(deps.storage)?;
+                        state.proofs.push((key1, key1_val, prev_key1));
+                        STATE.save(deps.storage, &state)?;
+                    } 
+                    //// TESTING ////
+                    // let mut state = STATE.load(deps.storage)?;
+                    // state.proofs.push((key1, key1_val.clone(), prev_key1));
+                    // STATE.save(deps.storage, &state)?;
 
-
-                //// TESTING ////
-                let mut state = STATE.load(deps.storage)?;
-                state.proofs.push((key1, key1_val.clone(), prev_key1));
-                STATE.save(deps.storage, &state)?;
-
-                // if condition is met, update the proofs accordingly
-                if view > key1 && key1 as i32 > prev_key1 && !RECEIVED_PROOF.load(deps.storage, chain_id)? {
-                    let mut state = STATE.load(deps.storage)?;
-                    state.proofs.push((key1, key1_val, prev_key1));
-                    STATE.save(deps.storage, &state)?;
-                } 
+                    // if condition is met, update the proofs accordingly
+                    
+                }
+                
                 Ok(())
             },
             PacketMsg::Echo { val, view } => 
