@@ -5,7 +5,6 @@ use crate::{ibc_msg::PacketMsg, state::State};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub role: String,
     pub chain_id: u32,
     pub input: String,
 }

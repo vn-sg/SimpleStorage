@@ -69,8 +69,8 @@ upload_and_instantiate1() {
   # Instantiate the smart contracts
   echo "Instantiating smart contracts..."
 
-  INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0"}'
-  INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1"}'
+  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": "0"}'
+  INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": "1"}'
 
   wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
   wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
@@ -125,10 +125,10 @@ upload_and_instantiate3() {
 
   # INSTANTIATE_MSG_LEADER='{"role": "leader"}'
   # INSTANTIATE_MSG_FOLLOWER='{"role": "follower"}'
-  INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0"}'
-  INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1"}'
-  INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2"}'
-  INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3"}'
+  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": "0"}'
+  INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": "1"}'
+  INSTANTIATE_MSG_CHAIN2='{"chain_id": 2,"input": "2"}'
+  INSTANTIATE_MSG_CHAIN3='{"chain_id": 3,"input": "3"}'
 
   wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
   wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
@@ -195,10 +195,10 @@ upload_and_instantiate4() {
   echo "Instantiating smart contracts..."
 
 
-  INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0"}'
-  INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1"}'
-  INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2"}'
-  INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3"}'
+  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": "0"}'
+  INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": "1"}'
+  INSTANTIATE_MSG_CHAIN2='{"chain_id": 2,"input": "2"}'
+  INSTANTIATE_MSG_CHAIN3='{"chain_id": 3,"input": "3"}'
 
   set -x
 

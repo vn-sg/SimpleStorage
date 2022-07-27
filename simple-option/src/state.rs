@@ -9,7 +9,7 @@ use crate::{msg::ExecuteMsg, ibc_msg::PacketMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub role: String,
+    // pub role: String,
     pub n: u32,
     pub chain_id: u32,
     pub channel_ids: Vec<String>,
@@ -37,6 +37,40 @@ pub struct State {
     pub sent_suggest: bool,
     pub sent_done: bool,
     pub done: Option<String>
+}
+
+impl State {
+
+    // Another associated function, taking two arguments:
+    pub(crate) fn new(chain_id: u32, input: String) -> State {
+        State {
+            n: 1,
+            chain_id: chain_id,
+            channel_ids: Vec::new(),
+            current_tx_id: 0,
+            view: 0,
+            cur_view: 0,
+            primary: 1,
+            key1: 0,
+            key2: 0,
+            key3: 0,
+            lock: 0,
+            key1_val: input.clone(),
+            key2_val: input.clone(),
+            key3_val: input.clone(),
+            lock_val: input.clone(),
+            prev_key1: -1,
+            prev_key2: -1,
+            suggestions: Vec::new(),
+            key2_proofs: Vec::new(),
+            proofs: Vec::new(),
+            is_first_propose: true,
+            is_first_req_ack: true,
+            sent_suggest: false,
+            done: None,
+            sent_done: false,
+        }
+    }
 }
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

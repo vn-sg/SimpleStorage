@@ -18,7 +18,7 @@ use crate::msg::{
     ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, ValueResponse,
 };
 use crate::state::{
-    State, Tx, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE, TXS,
+    State, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE,
     VARS, TEST,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
@@ -38,34 +38,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State {
-        role: msg.role,
-        n: 1,
-        chain_id: msg.chain_id,
-        channel_ids: Vec::new(),
-        current_tx_id: 0,
-        view: 0,
-        cur_view: 0,
-        primary: 1,
-        key1: 0,
-        key2: 0,
-        key3: 0,
-        lock: 0,
-        key1_val: msg.input.clone(),
-        key2_val: msg.input.clone(),
-        key3_val: msg.input.clone(),
-        lock_val: msg.input.clone(),
-        prev_key1: -1,
-        prev_key2: -1,
-        suggestions: Vec::new(),
-        key2_proofs: Vec::new(),
-        proofs: Vec::new(),
-        is_first_propose: true,
-        is_first_req_ack: true,
-        sent_suggest: false,
-        done: None,
-        sent_done: false,
-    };
+    let state = State::new(msg.chain_id, msg.input);
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -108,6 +81,7 @@ pub fn handle_execute_input(
     let mut state = STATE.load(deps.storage)?;
 
     // Initialization
+    state.sent_suggest = false;
     state.done = None;
     state.sent_done = false;
     state.view = 0;
