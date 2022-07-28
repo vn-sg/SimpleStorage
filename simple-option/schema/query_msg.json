@@ -6,51 +6,11 @@
       "description": "GetValue querys value for given key, GetState returns the current state, GetTx returns tx with tx_id",
       "type": "object",
       "required": [
-        "get_value"
-      ],
-      "properties": {
-        "get_value": {
-          "type": "object",
-          "required": [
-            "key"
-          ],
-          "properties": {
-            "key": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "get_state"
       ],
       "properties": {
         "get_state": {
           "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_tx"
-      ],
-      "properties": {
-        "get_tx": {
-          "type": "object",
-          "required": [
-            "tx_id"
-          ],
-          "properties": {
-            "tx_id": {
-              "type": "string"
-            }
-          }
         }
       },
       "additionalProperties": false
@@ -122,6 +82,78 @@
       ],
       "properties": {
         "get_test_queue": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_echo"
+      ],
+      "properties": {
+        "get_echo": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_key1"
+      ],
+      "properties": {
+        "get_key1": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_key2"
+      ],
+      "properties": {
+        "get_key2": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_key3"
+      ],
+      "properties": {
+        "get_key3": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_lock"
+      ],
+      "properties": {
+        "get_lock": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_done"
+      ],
+      "properties": {
+        "get_done": {
           "type": "object"
         }
       },

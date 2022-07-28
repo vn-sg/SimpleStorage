@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use cw_storage_plus::{Item, Map};
 
-use crate::{msg::ExecuteMsg, ibc_msg::PacketMsg};
+use crate::{msg::ExecuteMsg, ibc_msg::{PacketMsg, Msg}};
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -119,7 +119,7 @@ pub struct Test {
 
 pub const STATE: Item<State> = Item::new("state");
 
-pub const VARS: Map<&str, String> = Map::new("vars");
+// pub const VARS: Map<&str, String> = Map::new("vars");
 pub const TXS: Map<u32, Tx> = Map::new("txs");
 pub const CHANNELS: Map<u32, String> = Map::new("channels");
 
@@ -130,9 +130,9 @@ pub const RECEIVED_PROOF: Map<u32, bool> = Map::new("received_proof");
 // pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
 pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
-pub const TEST_QUEUE: Map<u32, (u32, Vec<PacketMsg>)> = Map::new("test_queue");
+pub const TEST_QUEUE: Map<u32, (u32, Vec<Msg>)> = Map::new("test_queue");
 pub const UPON_QUEUE: Map<String, Vec<PacketMsg>> = Map::new("upon_queue");
-pub const SEND_ALL_UPON: Map<u32, Vec<PacketMsg>> = Map::new("send_all_upon");
+pub const SEND_ALL_UPON: Map<u32, Vec<Msg>> = Map::new("send_all_upon");
 
 // Message types to indicate the amount of which received on the same val
 // MessageType: Map<VAL, COUNT>

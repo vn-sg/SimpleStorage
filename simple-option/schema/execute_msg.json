@@ -5,52 +5,6 @@
     {
       "type": "object",
       "required": [
-        "set"
-      ],
-      "properties": {
-        "set": {
-          "type": "object",
-          "required": [
-            "key",
-            "value"
-          ],
-          "properties": {
-            "key": {
-              "type": "string"
-            },
-            "value": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get"
-      ],
-      "properties": {
-        "get": {
-          "type": "object",
-          "required": [
-            "key"
-          ],
-          "properties": {
-            "key": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "input"
       ],
       "properties": {
@@ -64,6 +18,18 @@
               "type": "string"
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "force_abort"
+      ],
+      "properties": {
+        "force_abort": {
+          "type": "object"
         }
       },
       "additionalProperties": false

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{ibc_msg::PacketMsg, state::State};
+use crate::{ibc_msg::{Msg}, state::State};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -26,7 +26,13 @@ pub enum QueryMsg {
     GetHighestReq { },
     GetReceivedSuggest { },
     GetSendAllUpon { },
-    GetTestQueue { }
+    GetTestQueue { },
+    GetEcho { },
+    GetKey1 { },
+    GetKey2 { },
+    GetKey3 { },
+    GetLock { },
+    GetDone { }
 }
 
 // We define a custom struct for each query response
@@ -67,10 +73,34 @@ pub struct ReceivedSuggestResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SendAllUponResponse {
-    pub send_all_upon: Vec<(u32, Vec<PacketMsg>)>
+    pub send_all_upon: Vec<(u32, Vec<Msg>)>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestQueueResponse {
-    pub test_queue: Vec<(u32, (u32, Vec<PacketMsg>))>
+    pub test_queue: Vec<(u32, (u32, Vec<Msg>))>
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct EchoQueryResponse { 
+    pub echo: Vec<(String, u32)>
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Key1QueryResponse { 
+    pub key1: Vec<(String, u32)>
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Key2QueryResponse { 
+    pub key2: Vec<(String, u32)>
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Key3QueryResponse { 
+    pub key3: Vec<(String, u32)>
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockQueryResponse { 
+    pub lock: Vec<(String, u32)>
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DoneQueryResponse { 
+    pub done: Vec<(String, u32)>
 }

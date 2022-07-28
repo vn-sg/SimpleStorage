@@ -1,116 +1,76 @@
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, IbcTimeout, Order, Response,
-    StdError, StdResult, SubMsg,
+    entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, IbcTimeout, Response, StdResult, SubMsg,
 };
 use cosmwasm_std::{
-    IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg,
-    IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
+    IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
 };
 
-use crate::contract::{REQUEST_REPLY_ID, SUGGEST_REPLY_ID, PROPOSE_REPLY_ID};
+use crate::contract::{REQUEST_REPLY_ID};
 use crate::ibc_msg::{
-    AcknowledgementMsg, CommitResponse, PacketMsg, ProposeResponse, RequestResponse,
-    SuggestResponse, WhoAmIResponse, ProofResponse, MsgQueueResponse, EchoResponse, Key1Response, Key2Response, Key3Response, LockResponse, DoneResponse,
+    AcknowledgementMsg, PacketMsg, WhoAmIResponse, ProofResponse, EchoResponse, Key1Response, Key2Response, Key3Response, LockResponse, DoneResponse, Msg,
 };
-use crate::msg::{ExecuteMsg};
+
 use crate::state::{
-    CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_SUGGEST, STATE, VARS, SEND_ALL_UPON, ECHO, RECEIVED_PROOF, TEST_QUEUE, TEST, KEY1, KEY2, KEY3, LOCK, DONE,
+    CHANNELS, STATE,
 };
-use crate::utils::{get_id_channel_pair, get_timeout, F};
+use crate::utils::{get_timeout, F};
 use crate::queue_handler::{receive_queue};
 
 use crate::ContractError;
 
 
-// pub fn create_msgs_view_change(
+// pub fn send_all_upon_join_sub(
+//     deps: &DepsMut,
+//     timeout: IbcTimeout,
+//     mut res: Response,
+//     packet_to_broadcast: PacketMsg,
+//     reply_id: u64
+// ) -> Result<Response, ContractError> {
+//     let channel_ids = get_id_channel_pair(deps.storage)?;
+//     // let mut res = res;
+//     let state = STATE.load(deps.storage)?;
+//     for (chain_id, channel_id) in &channel_ids {
+//         let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+//         if highest_request == state.view {
+//             let msg = IbcMsg::SendPacket {
+//                 channel_id: channel_id.clone(),
+//                 data: to_binary(&packet_to_broadcast)?,
+//                 timeout: timeout.clone(),
+//             };
+//             let submsg = SubMsg::reply_on_success(msg, reply_id);
+//             res = res.add_submessage(submsg);
+//         }
+//     }
+
+//     Ok(res)
+// }
+
+// pub fn send_all_upon_join(
 //     deps: &DepsMut,
 //     timeout: IbcTimeout,
 //     packet_to_broadcast: PacketMsg,
-// ) -> Result<Vec<IbcMsg>, ContractError> {
+// ) -> Result<Vec<SubMsg>, ContractError> {
+//     let channel_ids = get_id_channel_pair(deps.storage)?;
 
-    
-// }
-
-// }
-
-// pub fn send_all_upon_join_queue(
-//     deps: &DepsMut,
-//     packet_to_broadcast: PacketMsg,
-//     queue: &mut Vec<Vec<PacketMsg>>
-// ) -> Result<(), ContractError> {
-//     let channel_ids = get_id_channel_pair(&deps)?;
+//     let mut msgs = Vec::new();
 //     let state = STATE.load(deps.storage)?;
-//     for (chain_id, _channel_id) in &channel_ids {
+//     for (chain_id, channel_id) in &channel_ids {
 //         let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
 //         if highest_request == state.view {
-//             queue[*chain_id as usize].push(packet_to_broadcast.clone());
-//         }
-//         else{
-//             let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
-//                 match packets {
-//                     Some(_) => todo!(),
-//                     None => Ok(vec!(packet_to_broadcast.clone())),
-//                 }
-                
+//             let msg = IbcMsg::SendPacket {
+//                 channel_id: channel_id.clone(),
+//                 data: to_binary(&packet_to_broadcast)?,
+//                 timeout: timeout.clone(),
 //             };
-//             SEND_ALL_UPON.update(deps.storage, *chain_id, action)?;
+//             let submsg: SubMsg = SubMsg::reply_on_success(msg, PROPOSE_REPLY_ID);
+//             msgs.push(submsg);
 //         }
 //     }
-//     Ok(())
+
+//     Ok(msgs)
 // }
-
-pub fn send_all_upon_join_sub(
-    deps: &DepsMut,
-    timeout: IbcTimeout,
-    mut res: Response,
-    packet_to_broadcast: PacketMsg,
-    reply_id: u64
-) -> Result<Response, ContractError> {
-    let channel_ids = get_id_channel_pair(&deps)?;
-    // let mut res = res;
-    let state = STATE.load(deps.storage)?;
-    for (chain_id, channel_id) in &channel_ids {
-        let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
-        if highest_request == state.view {
-            let msg = IbcMsg::SendPacket {
-                channel_id: channel_id.clone(),
-                data: to_binary(&packet_to_broadcast)?,
-                timeout: timeout.clone(),
-            };
-            let submsg = SubMsg::reply_on_success(msg, reply_id);
-            res = res.add_submessage(submsg);
-        }
-    }
-
-    Ok(res)
-}
-
-pub fn send_all_upon_join(
-    deps: &DepsMut,
-    timeout: IbcTimeout,
-    packet_to_broadcast: PacketMsg,
-) -> Result<Vec<SubMsg>, ContractError> {
-    let channel_ids = get_id_channel_pair(&deps)?;
-
-    let mut msgs = Vec::new();
-    let state = STATE.load(deps.storage)?;
-    for (chain_id, channel_id) in &channel_ids {
-        let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
-        if highest_request == state.view {
-            let msg = IbcMsg::SendPacket {
-                channel_id: channel_id.clone(),
-                data: to_binary(&packet_to_broadcast)?,
-                timeout: timeout.clone(),
-            };
-            let submsg: SubMsg = SubMsg::reply_on_success(msg, PROPOSE_REPLY_ID);
-            msgs.push(submsg);
-        }
-    }
-
-    Ok(msgs)
-}
 
 pub fn broadcast_submsgs(
     attrib: String,
@@ -306,58 +266,63 @@ pub fn ibc_packet_receive(
         let dest_channel_id = packet.dest.channel_id;
         let msg: PacketMsg = from_slice(&packet.data)?;
         match msg {
-            PacketMsg::MsgQueue { q } => receive_queue(deps, env, dest_channel_id, q),
-            PacketMsg::Propose {
-                chain_id,
-                k,
-                v,
-                view,
-            } => receive_propose(
-                deps,
-                dest_channel_id,
-                get_timeout(env),
-                chain_id,
-                k,
-                v,
-                view,
-            ),
+            PacketMsg::MsgQueue(q) => 
+            {
+                let state = STATE.load(deps.storage)?;
+                let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+                receive_queue(deps.storage, get_timeout(env), Some(dest_channel_id), q, &mut queue)
+            },
+            // PacketMsg::Propose {
+            //     chain_id,
+            //     k,
+            //     v,
+            //     view,
+            // } => receive_propose(
+            //     deps,
+            //     dest_channel_id,
+            //     get_timeout(env),
+            //     chain_id,
+            //     k,
+            //     v,
+            //     view,
+            // ),
             PacketMsg::WhoAmI { chain_id } => receive_who_am_i(deps, dest_channel_id, chain_id),
-            // PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
-            PacketMsg::Request { view, chain_id } => {
-                receive_request(deps, dest_channel_id, view, chain_id)
-            }
-            PacketMsg::Suggest {
-                chain_id,
-                view,
-                key2,
-                key2_val,
-                prev_key2,
-                key3,
-                key3_val,
-            } => receive_suggest(
-                deps,
-                env,
-                chain_id,
-                view,
-                key2,
-                key2_val,
-                prev_key2,
-                key3,
-                key3_val,
-            ),
-            PacketMsg::Proof {
-                key1,
-                key1_val,
-                prev_key1,
-                view,
-            } => receive_proof(deps, key1, key1_val, prev_key1, view),
-            PacketMsg::Echo { val, view} => receive_echo(deps, val, view),
-            PacketMsg::Key1 { val, view } => receive_key1(deps, val, view),
-            PacketMsg::Key2 { val, view } => receive_key2(deps, val, view),
-            PacketMsg::Key3 { val, view } => receive_key3(deps, val, view),
-            PacketMsg::Lock { val, view } => receive_lock(deps, val, view),
-            PacketMsg::Done { val } => receive_done(deps, val),
-            PacketMsg::Abort { view, chain_id } => todo!()
+            // // PacketMsg::Commit { msg, tx_id } => receive_commit(deps, dest_channel_id, msg, tx_id),
+            // PacketMsg::Request { view, chain_id } => {
+            //     receive_request(deps, dest_channel_id, view, chain_id)
+            // }
+            // PacketMsg::Suggest {
+            //     chain_id,
+            //     view,
+            //     key2,
+            //     key2_val,
+            //     prev_key2,
+            //     key3,
+            //     key3_val,
+            // } => receive_suggest(
+            //     deps,
+            //     env,
+            //     chain_id,
+            //     view,
+            //     key2,
+            //     key2_val,
+            //     prev_key2,
+            //     key3,
+            //     key3_val,
+            // ),
+            // PacketMsg::Proof {
+            //     key1,
+            //     key1_val,
+            //     prev_key1,
+            //     view,
+            // } => receive_proof(deps, key1, key1_val, prev_key1, view),
+            // PacketMsg::Echo { val, view} => receive_echo(deps, val, view),
+            // PacketMsg::Key1 { val, view } => receive_key1(deps, val, view),
+            // PacketMsg::Key2 { val, view } => receive_key2(deps, val, view),
+            // PacketMsg::Key3 { val, view } => receive_key3(deps, val, view),
+            // PacketMsg::Lock { val, view } => receive_lock(deps, val, view),
+            // PacketMsg::Done { val } => receive_done(deps, val),
+            // PacketMsg::Abort { view, chain_id } => todo!()
         }
     })()
     .or_else(|e| {
@@ -459,6 +424,8 @@ pub fn receive_proof(
         .add_attribute("action", "receive_proof"))
 }
 
+
+/*
 pub fn queue_receive_suggest(
     _queue_to_process: Vec<Vec<PacketMsg>>,
     deps: DepsMut,
@@ -578,8 +545,9 @@ pub fn receive_suggest(
         .add_attribute("action", "receive_suggest")
         .add_attribute("suggest_sender_chain_id", from_chain_id.to_string()))
 }
+*/
 
-fn accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool {
+fn _accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool {
     let mut supporting = 0;
     for (k, v, pk) in proofs {
         if (key as i32) < pk {
@@ -594,31 +562,31 @@ fn accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool 
     false
 }
 
-pub fn receive_request(
-    deps: DepsMut,
-    _caller: String,
-    view: u32,
-    chain_id: u32,
-) -> StdResult<IbcReceiveResponse> {
-    let mut state = STATE.load(deps.storage)?;
-    state.key2_proofs.push((state.current_tx_id,"received_request".to_string(), chain_id as i32));
-    state.current_tx_id += 1;
-    STATE.save(deps.storage, &state)?;
-    // Update stored highest_request for that blockchain accordingly
-    let highest_request = HIGHEST_REQ.load(deps.storage, chain_id)?;
-    if highest_request < view {
-        HIGHEST_REQ.save(deps.storage, chain_id, &view)?;
-    }
+// pub fn receive_request(
+//     deps: DepsMut,
+//     _caller: String,
+//     view: u32,
+//     chain_id: u32,
+// ) -> StdResult<IbcReceiveResponse> {
+//     let mut state = STATE.load(deps.storage)?;
+//     state.key2_proofs.push((state.current_tx_id,"received_request".to_string(), chain_id as i32));
+//     state.current_tx_id += 1;
+//     STATE.save(deps.storage, &state)?;
+//     // Update stored highest_request for that blockchain accordingly
+//     let highest_request = HIGHEST_REQ.load(deps.storage, chain_id)?;
+//     if highest_request < view {
+//         HIGHEST_REQ.save(deps.storage, chain_id, &view)?;
+//     }
 
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(RequestResponse {}))?;
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(RequestResponse {}))?;
 
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_request")
-        .add_attribute("chain_id", chain_id.to_string()))
-}
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_request")
+//         .add_attribute("chain_id", chain_id.to_string()))
+// }
 
-fn open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool> {
+fn _open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool> {
     let mut supporting: u32 = 0;
     let state = STATE.load(deps.storage)?;
     for (k, v, pk) in proofs {
@@ -635,13 +603,15 @@ fn open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool>
     }
 }
 
-// pub fn receive_wrapper(
-//     msgs: Vec<SubMsg>,
-//     receive_type: String
-// ) -> StdResult<IbcReceiveResponse> {
-//     let res = IbcReceiveResponse::new();
-//     Ok(res)
-// }
+
+/* 
+pub fn receive_wrapper(
+    msgs: Vec<SubMsg>,
+    receive_type: String
+) -> StdResult<IbcReceiveResponse> {
+    let res = IbcReceiveResponse::new();
+    Ok(res)
+}
 
 pub fn queue_receive_propose(
     deps: DepsMut,
@@ -740,6 +710,7 @@ pub fn receive_propose(
         Ok(res.add_submessages(msgs))
     }
 }
+*/
 
 // processes PacketMsg::WhoAmI
 fn receive_who_am_i(
@@ -767,13 +738,14 @@ fn receive_who_am_i(
 
 #[entry_point]
 pub fn ibc_packet_ack(
-    deps: DepsMut,
-    env: Env,
+    _deps: DepsMut,
+    _env: Env,
     msg: IbcPacketAckMsg,
 ) -> StdResult<IbcBasicResponse> {
     let packet: PacketMsg = from_slice(&msg.original_packet.data)?;
     match packet {
-        PacketMsg::MsgQueue { q: _ } => Ok(IbcBasicResponse::new()),
+        PacketMsg::MsgQueue(_q) => Ok(IbcBasicResponse::new()),
+/*
         PacketMsg::Propose {
             chain_id: _,
             k: _,
@@ -784,7 +756,9 @@ pub fn ibc_packet_ack(
             acknowledge_propose(deps, env, from_slice(&msg.acknowledgement.data)?)
         }
         // PacketMsg::Commit { msg: _, tx_id: _ } => Ok(IbcBasicResponse::new()),
+*/
         PacketMsg::WhoAmI { chain_id: _ } => Ok(IbcBasicResponse::new()),
+/*
         PacketMsg::Request {
             chain_id: _,
             view: _,
@@ -812,9 +786,10 @@ pub fn ibc_packet_ack(
         PacketMsg::Lock { val: _, view: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::Done { val: _ } => Ok(IbcBasicResponse::new()),
         PacketMsg::Abort { view, chain_id } => Ok(IbcBasicResponse::new()),
+         */
     }
 }
-
+/*
 fn _acknowledge_request(
     deps: DepsMut,
     env: Env,
@@ -933,6 +908,7 @@ fn acknowledge_propose(
         .add_attribute("commit", "false"))
     // }
 }
+*/
 
 #[entry_point]
 /// This will never be called
@@ -949,18 +925,19 @@ mod tests {
     use super::*;
     use crate::contract::{execute, instantiate, query};
     use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+    use crate::utils::IBC_APP_VERSION;
 
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_ibc_channel_connect_ack, mock_ibc_channel_open_init,
         mock_ibc_channel_open_try, mock_ibc_packet_ack, mock_info, MockApi, MockQuerier,
         MockStorage,
     };
-    use cosmwasm_std::{coins, CosmosMsg, OwnedDeps};
+    use cosmwasm_std::{coins, CosmosMsg, OwnedDeps, IbcOrder};
 
     fn setup() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies();
         let msg = InstantiateMsg {
-            role: "leader".to_string(),
+            // role: "leader".to_string(),
             chain_id: 0,
             input: 0.to_string(),
         };

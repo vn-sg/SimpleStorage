@@ -4,8 +4,7 @@
   "type": "object",
   "required": [
     "chain_id",
-    "input",
-    "role"
+    "input"
   ],
   "properties": {
     "chain_id": {
@@ -14,9 +13,6 @@
       "minimum": 0.0
     },
     "input": {
-      "type": "string"
-    },
-    "role": {
       "type": "string"
     }
   }

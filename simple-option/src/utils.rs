@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    StdResult, DepsMut, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage,
+    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage,
 };
 
 use crate::ibc_msg::{
-    PacketMsg
+    Msg
 };
 
 use crate::state::{
@@ -25,9 +25,9 @@ pub fn get_timeout(env: Env) -> IbcTimeout {
 }
 
 
-pub fn get_id_channel_pair(deps: &DepsMut) -> StdResult<Vec<(u32, String)>> {
+pub fn get_id_channel_pair(store: &mut dyn Storage) -> StdResult<Vec<(u32, String)>> {
     let channels: StdResult<Vec<_>> = CHANNELS
-        .range(deps.storage, None, None, Order::Ascending)
+        .range(store, None, None, Order::Ascending)
         .collect();
     channels
 }
@@ -39,8 +39,8 @@ pub fn get_id_channel_pair_from_storage(storage: &mut dyn Storage) -> StdResult<
     channels
 }
 
-pub fn send_all_upon_join_queue(storage: &mut dyn Storage, packet_to_broadcast: PacketMsg, 
-                                queue: &mut Vec<Vec<PacketMsg>>) -> Result<(), ContractError> {
+pub fn send_all_upon_join_queue(storage: &mut dyn Storage, packet_to_broadcast: Msg, 
+                                queue: &mut Vec<Vec<Msg>>) -> Result<(), ContractError> {
     let channel_ids = get_id_channel_pair_from_storage(storage)?;
     let state = STATE.load(storage)?;
     for (chain_id, _channel_id) in &channel_ids {
@@ -49,7 +49,7 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, packet_to_broadcast: 
             queue[*chain_id as usize].push(packet_to_broadcast.clone());
         }
         else{
-            let action = |packets: Option<Vec<PacketMsg>>| -> StdResult<Vec<PacketMsg>> {
+            let action = |packets: Option<Vec<Msg>>| -> StdResult<Vec<Msg>> {
                 match packets {
                     Some(_) => todo!(),
                     None => Ok(vec!(packet_to_broadcast.clone())),

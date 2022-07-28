@@ -8,18 +8,17 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::utils::{get_timeout, F};
-use crate::view_change::{view_change};
-use crate::queue_handler::{handle_abort};
-use crate::ibc_msg::PacketMsg;
+use crate::ibc_msg::Msg;
+use crate::queue_handler::handle_abort;
+use crate::utils::get_timeout;
+use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
     ChannelsResponse, ExecuteMsg, HighestReqResponse, InstantiateMsg, QueryMsg,
-    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, ValueResponse,
+    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, EchoQueryResponse,
 };
 use crate::state::{
-    State, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE,
-    VARS, TEST,
+    State, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE, TEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -43,11 +42,6 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
-    // initialize the highest_request of oneself
-    HIGHEST_REQ.save(deps.storage, msg.chain_id, &0)?;
-    // initialize the highest_abort of oneself
-    HIGHEST_ABORT.save(deps.storage, msg.chain_id, &-1)?;
-
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("owner", info.sender))
@@ -60,6 +54,7 @@ pub fn handle_execute_input(
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
     let timeout: IbcTimeout = get_timeout(env);
+    let mut state = STATE.load(deps.storage)?;
 
     // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
     let all_chain_ids: StdResult<Vec<_>> = CHANNELS
@@ -73,12 +68,17 @@ pub fn handle_execute_input(
         RECEIVED_SUGGEST.save(deps.storage, chain_id, &false)?;
         RECEIVED_PROOF.save(deps.storage, chain_id, &false)?;
     }
+    // initialize the highest_request of oneself
+    HIGHEST_REQ.save(deps.storage, state.chain_id, &0)?;
+    // initialize the highest_abort of oneself
+    HIGHEST_ABORT.save(deps.storage, state.chain_id, &-1)?;
+    RECEIVED_SUGGEST.save(deps.storage, state.chain_id, &false)?;
+    RECEIVED_PROOF.save(deps.storage, state.chain_id, &false)?;
     /* a better way?
     CHANNELS
         .keys(deps.storage, None, None, Order::Ascending)
         .map(|id| HIGHEST_REQ.save(deps.storage, id?, &0)? );
     */
-    let mut state = STATE.load(deps.storage)?;
 
     // Initialization
     state.sent_suggest = false;
@@ -130,16 +130,18 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
-        ExecuteMsg::ForceAbort {  } => {
+        ExecuteMsg::ForceAbort {} => {
             //TODO add abort timestamp validation and start new view
-            let mut state = STATE.load(deps.storage)?;
+            let state = STATE.load(deps.storage)?;
             let result = handle_abort(deps.storage, state.view, state.chain_id);
             let response = Response::new()
                 .add_attribute("action", "execute")
                 .add_attribute("msg_type", "get");
             match result {
                 Ok(_) => Ok(response),
-                Err(error_msg) => Err(ContractError::CustomError { val: error_msg.to_string() }),
+                Err(error_msg) => Err(ContractError::CustomError {
+                    val: error_msg.to_string(),
+                }),
             }
         }
     }
@@ -180,8 +182,64 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetReceivedSuggest {} => to_binary(&query_received_suggest(deps)?),
         QueryMsg::GetSendAllUpon {} => to_binary(&query_send_all_upon(deps)?),
         QueryMsg::GetTestQueue {} => to_binary(&query_test_queue(deps)?),
+        QueryMsg::GetEcho {} => to_binary(&query_echo(deps)?),
+        QueryMsg::GetKey1 {} => to_binary(&query_key1(deps)?),
+        QueryMsg::GetKey2 {} => to_binary(&query_key2(deps)?),
+        QueryMsg::GetKey3 {} => to_binary(&query_key3(deps)?),
+        QueryMsg::GetLock {} => to_binary(&query_lock(deps)?),
+        QueryMsg::GetDone {} => to_binary(&query_done(deps)?),
     }
 }
+
+fn query_echo(deps: Deps) -> StdResult<EchoQueryResponse> {
+    let query: StdResult<Vec<_>> = ECHO
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(EchoQueryResponse {
+        echo: query?,
+    })
+}
+fn query_key1(deps: Deps) -> StdResult<Key1QueryResponse> {
+    let query: StdResult<Vec<_>> = KEY1
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(Key1QueryResponse {
+        key1: query?,
+    })
+}
+fn query_key2(deps: Deps) -> StdResult<Key2QueryResponse> {
+    let query: StdResult<Vec<_>> = KEY2
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(Key2QueryResponse {
+        key2: query?,
+    })
+}
+fn query_key3(deps: Deps) -> StdResult<Key3QueryResponse> {
+    let query: StdResult<Vec<_>> = KEY3
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(Key3QueryResponse {
+        key3: query?,
+    })
+}
+fn query_lock(deps: Deps) -> StdResult<LockQueryResponse> {
+    let query: StdResult<Vec<_>> = LOCK
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(LockQueryResponse {
+        lock: query?,
+    })
+}
+fn query_done(deps: Deps) -> StdResult<DoneQueryResponse> {
+    let query: StdResult<Vec<_>> = DONE
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(DoneQueryResponse {
+        done: query?,
+    })
+}
+
 
 fn query_state(deps: Deps) -> StdResult<StateResponse> {
     let state = STATE.load(deps.storage)?;
@@ -242,15 +300,15 @@ fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
         port_chan_pair: channels?,
     })
 }
-
+/*
 fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
-    // let state = STATE.load(deps.storage)?;
     let value = VARS.may_load(deps.storage, &key)?;
     match value {
         Some(v) => Ok(ValueResponse::KeyFound { key, value: v }),
         None => Ok(ValueResponse::KeyNotFound {}),
     }
 }
+*/
 
 // entry_point for sub-messages
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -272,7 +330,7 @@ fn _handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> Std
         let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
         if prim_highest_req == state.view {
             // Contruct Suggest message to delivery to primary
-            let packet = PacketMsg::Suggest {
+            let packet = Msg::Suggest {
                 chain_id: state.chain_id,
                 view: state.view,
                 key2: state.key2,

@@ -6,8 +6,44 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PacketMsg {
-    MsgQueue {
-        q: Vec<PacketMsg>
+    MsgQueue (
+        Vec<Msg>
+    ),
+    WhoAmI { 
+        chain_id: u32,
+        
+    },
+    // TimeoutMsg{
+    //     time_view: u32
+    // },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Msg {
+
+    Request { 
+        view: u32, 
+        chain_id: u32 
+    },
+    Suggest { 
+        chain_id: u32,
+        view: u32,
+        key2: u32,
+        key2_val: String,
+        prev_key2: i32,
+        key3: u32,
+        key3_val: String
+    },
+    Proof {
+        key1: u32,
+        key1_val: String,
+        prev_key1: i32,
+        view: u32
+    },
+    Abort {
+        view: u32,
+        chain_id: u32,
     },
     Propose { 
         chain_id: u32,
@@ -39,36 +75,6 @@ pub enum PacketMsg {
     Done {
         val: String
     },
-    WhoAmI { 
-        chain_id: u32,
-        
-    },
-    // TimeoutMsg{
-    //     time_view: u32
-    // },
-    Request { 
-        view: u32, 
-        chain_id: u32 
-    },
-    Suggest { 
-        chain_id: u32,
-        view: u32,
-        key2: u32,
-        key2_val: String,
-        prev_key2: i32,
-        key3: u32,
-        key3_val: String
-    },
-    Proof {
-        key1: u32,
-        key1_val: String,
-        prev_key1: i32,
-        view: u32
-    },
-    Abort {
-        view: u32,
-        chain_id: u32,
-    }
 }
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // #[serde(rename_all = "snake_case")]
