@@ -396,7 +396,7 @@ mod tests {
         let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
-            role: "leader".to_string(),
+            // role: "leader".to_string(),
             chain_id: 0,
             input: 0.to_string(),
         };
@@ -439,7 +439,7 @@ mod tests {
     fn instantiate_then_get_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies();
         let msg = InstantiateMsg {
-            role: "leader".to_string(),
+            // role: "leader".to_string(),
             chain_id: 0,
             input: 0.to_string(),
         };
