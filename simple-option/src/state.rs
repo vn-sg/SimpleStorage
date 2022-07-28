@@ -116,7 +116,6 @@ pub struct Test {
     pub dest_chan_id: String,
 }
 
-
 pub const STATE: Item<State> = Item::new("state");
 
 // pub const VARS: Map<&str, String> = Map::new("vars");

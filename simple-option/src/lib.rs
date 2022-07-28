@@ -7,5 +7,6 @@ pub mod state;
 pub mod utils;
 pub mod queue_handler;
 pub mod view_change;
+pub mod abort;
 
 pub use crate::error::ContractError;

@@ -62,8 +62,6 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, packet_to_broadcast: 
     Ok(())
 }
 
-
-
 fn _verify_channel(msg: IbcChannelOpenMsg) -> StdResult<()> {
     let channel = msg.channel();
 

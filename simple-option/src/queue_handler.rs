@@ -1,6 +1,6 @@
 
 use cosmwasm_std::{
-    StdResult, Order, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout
+    StdResult, Order, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, DepsMut
 };
 
 use std::convert::TryInto;
@@ -10,8 +10,9 @@ use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage,
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-    TEST_QUEUE, RECEIVED_PROOF, TEST, HIGHEST_ABORT
+    TEST_QUEUE, RECEIVED_PROOF, TEST, HIGHEST_ABORT, State
 };
+use crate::abort::{handle_abort};
 
 
 pub fn receive_queue(
@@ -568,49 +569,3 @@ pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet
     
     Ok(())
 }
-
-pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) -> Result<(), StdError> {
-    let mut state = STATE.load(storage)?;
-    if ((HIGHEST_ABORT.load(storage, sender_chain_id)? + 1) as u32)< (view+1) {
-        HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
-            match option {
-                Some(_val) => Ok(view as i32),
-                None => Ok(view as i32),
-            }
-        })?;
-
-        let highest_abort_vector_pair: StdResult<Vec<_>> = HIGHEST_ABORT
-            .range(storage, None, None, Order::Ascending)
-            .collect();
-        let mut vector_values = match highest_abort_vector_pair {
-            Ok(vec) => { 
-                let temp = vec.iter().map(|(_key, value)| value.clone()).collect::<Vec<i32>>();
-                temp
-            }
-            Err(_) => return Err(StdError::GenericErr { msg: "Error nth".to_string()}),
-        };
-        vector_values.sort();
-        
-        let u = vector_values[ (F+1) as usize]; 
-        if u > HIGHEST_ABORT.load(storage, state.chain_id)? {
-            if u >= -1 {
-                HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
-                    match option {
-                        Some(_val) => Ok(u),
-                        None => Ok(u),
-                    }
-                })?;
-            }
-        }
-
-        let w = vector_values[(NUMBER_OF_NODES-F) as usize];
-        if (w+1) as u32 >= state.view {
-            state.view = (w + 1) as u32;
-            STATE.save(storage, &state)?;
-        }
-
-    }
-    Ok(())
-}
-
-
