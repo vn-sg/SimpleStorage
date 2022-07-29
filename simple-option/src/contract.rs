@@ -55,7 +55,7 @@ pub fn instantiate(
 pub fn handle_execute_input(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     input: String,
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
@@ -87,38 +87,40 @@ pub fn handle_execute_input(
     */
 
     // Initialization
-    // state.sent_suggest = false;
-    // state.sent_done = false;
-    state.sent = HashSet::new();
-    state.done = None;
-    state.view = 0;
-    state.cur_view = 0;
-    state.key1 = 0;
-    state.key2 = 0;
-    state.key3 = 0;
-    state.lock = 0;
-    state.prev_key1 = -1;
-    state.prev_key2 = -1;
-    state.key1_val = input.clone();
-    state.key2_val = input.clone();
-    state.key3_val = input.clone();
-    state.lock_val = input.clone();
-    // Set suggestions and key2_proofs to empty set
-    state.suggestions = Vec::new();
-    state.key2_proofs = Vec::new();
+    // state.sent = HashSet::new();
+    // state.done = None;
+    // state.view = 0;
+    // state.cur_view = 0;
+    // state.key1 = 0;
+    // state.key2 = 0;
+    // state.key3 = 0;
+    // state.lock = 0;
+    // state.prev_key1 = -1;
+    // state.prev_key2 = -1;
+    // state.key1_val = input.clone();
+    // state.key2_val = input.clone();
+    // state.key3_val = input.clone();
+    // state.lock_val = input.clone();
+    // // Set suggestions and key2_proofs to empty set
+    // state.suggestions = Vec::new();
+    // state.key2_proofs = Vec::new();
 
-    // Use block time..
-    state.start_time = env.block.time.clone();
+    // // Use block time..
+    // state.start_time = env.block.time.clone();
 
-    // Set the primary to be (view mod n) + 1
-    state.primary = state.view % state.n + 1;
+    // // Set the primary to be (view mod n) + 1
+    // state.primary = state.view % state.n + 1;
 
-    ////    process_messages() part     ////
-    // initialize proofs to an empty set
-    state.proofs = Vec::new();
+    // ////    process_messages() part     ////
+    // // initialize proofs to an empty set
+    // state.proofs = Vec::new();
 
-    // reset values
-    state.received_propose = true;
+    // // reset values
+    // state.received_propose = true;
+
+
+    // Re-init
+    state.re_init(input, env.block.time.clone());
 
     // Store values to state
     STATE.save(deps.storage, &state)?;

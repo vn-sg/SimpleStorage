@@ -44,10 +44,9 @@ pub struct State {
 }
 
 impl State {
-
     // Another associated function, taking two arguments:
-    pub(crate) fn new(chain_id: u32, input: String, start_time: Timestamp) -> State {
-        State {
+    pub(crate) fn new(chain_id: u32, input: String, start_time: Timestamp) -> Self {
+        Self {
             n: 1,
             chain_id: chain_id,
             channel_ids: Vec::new(),
@@ -76,6 +75,41 @@ impl State {
             done: None,
             start_time: start_time,
         }
+    }
+    pub(crate) fn re_init(&mut self, input: String, start_time: Timestamp) -> () {
+        self.sent = HashSet::new();
+        self.done = None;
+        self.view = 0;
+        self.cur_view = 0;
+        self.key1 = 0;
+        self.key2 = 0;
+        self.key3 = 0;
+        self.lock = 0;
+        self.prev_key1 = -1;
+        self.prev_key2 = -1;
+        self.key1_val = input.clone();
+        self.key2_val = input.clone();
+        self.key3_val = input.clone();
+        self.lock_val = input.clone();
+        // Set suggestions and key2_proofs to empty set
+        self.suggestions = Vec::new();
+        self.key2_proofs = Vec::new();
+
+        // Use block time..
+        self.start_time = start_time;
+
+        // Set the primary to be (view mod n) + 1
+        self.primary = self.view % self.n + 1;
+
+        ////    process_messages() part     ////
+        // initialize proofs to an empty set
+        self.proofs = Vec::new();
+
+        // reset values
+        self.received_propose = true;
+
+        ()
+
     }
 }
 
