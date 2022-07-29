@@ -67,7 +67,7 @@ impl State {
             suggestions: Vec::new(),
             key2_proofs: Vec::new(),
             proofs: Vec::new(),
-            received_propose: true,
+            received_propose: false,
             // is_first_req_ack: true,
             // sent_suggest: false,
             // sent_done: false,
@@ -106,7 +106,7 @@ impl State {
         self.proofs = Vec::new();
 
         // reset values
-        self.received_propose = true;
+        self.received_propose = false;
 
         ()
 
@@ -164,7 +164,6 @@ pub const CHANNELS: Map<u32, String> = Map::new("channels");
 
 pub const HIGHEST_REQ: Map<u32, u32> = Map::new("highest_req");
 pub const HIGHEST_ABORT: Map<u32, i32> = Map::new("highest_abort");
-// pub const RECEIVED_PROPOSE: Map<u32, bool> = Map::new("received_propose");
 
 pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
 pub const TEST_QUEUE: Map<u32, (u32, Vec<Msg>)> = Map::new("test_queue");

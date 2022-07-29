@@ -40,10 +40,10 @@ pub fn receive_queue(
                     if view != state.view {
                     } else {
                         // upon receiving the first propose message from a chain
-                        if chain_id == state.primary && state.received_propose {
+                        if !state.received_propose && chain_id == state.primary {
                             // RECEIVED_PROPOSE.save(store, chain_id, &true)?;
                             let mut broadcast = false;
-                            state.received_propose = false;
+                            state.received_propose = true;
                             STATE.save(store, &state)?;
                             
                             // First case we should broadcast Echo message
@@ -275,24 +275,6 @@ pub fn receive_queue(
 
             // Handle Echo
             {
-
-                // detect if self-send
-                let chain_id = match local_channel_id.clone() {
-                    Some(id) => {
-                        // Get the chain_id of the sender
-                        CHANNELS
-                        .range(store, None, None, Order::Ascending)
-                        .find_map(|res| { 
-                            let (chain_id,channel_id) = res.unwrap(); 
-                            if channel_id == id { 
-                                Some(chain_id) 
-                            } 
-                            else { None }
-                        }).unwrap()
-                    },
-                    None => state.chain_id,
-                };
-
                 let key1_packet = Msg::Key1 { val: val.clone(), view };
                 let mut state = STATE.load(store)?;
 
@@ -541,7 +523,7 @@ fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
         let count = message_type.update(storage, val.clone(), action)?;
 
         // upon receiving from n - f parties with the same val
-        if state.sent.contains(msg_to_send.name()) && count >= state.n - F {
+        if !state.sent.contains(msg_to_send.name()) && count >= state.n - F {
             state.sent.insert(msg_to_send.name().to_string());
             STATE.save(storage, &state)?;
             // send_all_upon_join_queue

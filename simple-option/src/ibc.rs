@@ -629,9 +629,9 @@ pub fn queue_receive_propose(
     if view != state.view {
     } else {
         // upon receiving the first propose message from a chain
-        if chain_id == state.primary && state.received_propose {
+        if chain_id == state.primary && !state.received_propose {
             // RECEIVED_PROPOSE.save(deps.storage, chain_id, &true)?;
-            state.received_propose = false;
+            state.received_propose = true;
             STATE.save(deps.storage, &state)?;
             
             // First case we should broadcast Echo message
@@ -676,9 +676,9 @@ pub fn receive_propose(
     if view != state.view {
     } else {
         // upon receiving the first propose message from a chain
-        if chain_id == state.primary && state.received_propose {
+        if chain_id == state.primary && !state.received_propose {
             // RECEIVED_PROPOSE.save(deps.storage, chain_id, &true)?;
-            state.received_propose = false;
+            state.received_propose = true;
             STATE.save(deps.storage, &state)?;
             
             // First case we should broadcast Echo message
