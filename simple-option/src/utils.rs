@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use cosmwasm_std::{
     StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage,
 };
@@ -7,7 +9,7 @@ use crate::ibc_msg::{
 };
 
 use crate::state::{
-    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ
+    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK,
 };
 
 // macro_rules! enum_to_str {
@@ -37,6 +39,83 @@ pub const IBC_APP_VERSION: &str = "simple_storage";
 
 
 use crate::ContractError;
+
+pub fn get_chain_id(store: &mut dyn Storage, channel_id_to_get: String) -> u32 {
+    // Get the chain_id of the sender
+    CHANNELS
+    .range(store, None, None, Order::Ascending)
+    .find_map(|res| { 
+        let (chain_id,channel_id) = res.unwrap(); 
+        if channel_id == channel_id_to_get { 
+            Some(chain_id) 
+        } 
+        else { None }
+    }).unwrap()
+}
+
+pub fn init_receice_map(store: &mut dyn Storage) -> StdResult<()> {
+    let state = STATE.load(store)?;
+    // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
+    let all_chain_ids: StdResult<Vec<_>> = CHANNELS
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    let all_chain_ids = all_chain_ids?;
+    // initialize the highest_request of oneself
+    HIGHEST_REQ.save(store, state.chain_id, &0)?;
+    // initialize the highest_abort of oneself
+    HIGHEST_ABORT.save(store, state.chain_id, &-1)?;
+    for chain_id in all_chain_ids {
+        HIGHEST_REQ.save(store, chain_id, &0)?;
+        // Resetting highest_abort
+        HIGHEST_ABORT.save(store, chain_id, &-1)?;
+        // RECEIVED_SUGGEST.save(store, chain_id, &false)?;
+        // RECEIVED_PROOF.save(store, chain_id, &false)?;
+    }
+    
+    // remove all records for previous values
+    let msg_types: StdResult<Vec<_>> = RECEIVED
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for msg_type in msg_types? {
+                RECEIVED.save(store, msg_type, &HashSet::new())?;
+            }
+
+    let vals: StdResult<Vec<_>> = RECEIVED_ECHO
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in vals? {
+                RECEIVED_ECHO.remove(store, v);
+            }       
+    let vals: StdResult<Vec<_>> = RECEIVED_KEY1
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in vals? {
+                RECEIVED_KEY1.remove(store, v);
+            }       
+    let vals: StdResult<Vec<_>> = RECEIVED_KEY2
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in vals? {
+                RECEIVED_KEY2.remove(store, v);
+            }       
+    let vals: StdResult<Vec<_>> = RECEIVED_KEY3
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in vals? {
+                RECEIVED_KEY3.remove(store, v);
+            }       
+    let vals: StdResult<Vec<_>> = RECEIVED_LOCK
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in vals? {
+                RECEIVED_LOCK.remove(store, v);
+            }       
+
+    // RECEIVED_SUGGEST.save(store, state.chain_id, &false)?;
+    // RECEIVED_PROOF.save(store, state.chain_id, &false)?;
+
+    Ok(())
+}
 
 pub fn get_timeout(env: &Env) -> IbcTimeout {
     env.block.time.plus_seconds(PACKET_LIFETIME).into()

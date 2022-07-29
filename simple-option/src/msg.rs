@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use cosmwasm_std::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -71,7 +73,7 @@ pub struct HighestReqResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ReceivedSuggestResponse {
-    pub received_suggest: Vec<(u32, bool)>
+    pub received_suggest: HashSet<u32>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -85,23 +87,23 @@ pub struct TestQueueResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct EchoQueryResponse { 
-    pub echo: Vec<(String, u32)>
+    pub echo: Vec<(String, HashSet<u32>)>
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Key1QueryResponse { 
-    pub key1: Vec<(String, u32)>
+    pub key1: Vec<(String, HashSet<u32>)>
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Key2QueryResponse { 
-    pub key2: Vec<(String, u32)>
+    pub key2: Vec<(String, HashSet<u32>)>
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Key3QueryResponse { 
-    pub key3: Vec<(String, u32)>
+    pub key3: Vec<(String, HashSet<u32>)>
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LockQueryResponse { 
-    pub lock: Vec<(String, u32)>
+    pub lock: Vec<(String, HashSet<u32>)>
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DoneQueryResponse { 

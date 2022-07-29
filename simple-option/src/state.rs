@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet};
 
 use cosmwasm_std::{IbcMsg, Timestamp};
 use schemars::JsonSchema;
@@ -184,8 +184,11 @@ pub const DEDUPE_PACKET: Map<String, Map<u32, Map<u32, bool>>> = Map::new("dedup
 
 
 // FOR DEDUPING MESSAGES <Channel_Id, has_received_the_message_before>
-pub const RECEIVED_SUGGEST: Map<u32, bool> = Map::new("received_suggest");
-pub const RECEIVED_PROOF: Map<u32, bool> = Map::new("received_proof");
-pub const RECEIVED_ECHO: Map<u32, bool> = Map::new("received_echo");
-pub const RECEIVED_KEY_1: Map<u32, bool> = Map::new("received_key1");
-pub const RECEIVED_KEY_2: Map<u32, bool> = Map::new("received_key2");
+pub const RECEIVED: Map<String, HashSet<u32>> = Map::new("received");
+// pub const RECEIVED_SUGGEST: Map<String, HashSet<u32>> = Map::new("received_suggest");
+// pub const RECEIVED_PROOF: Map<String, HashSet<u32>> = Map::new("received_proof");
+pub const RECEIVED_ECHO: Map<String, HashSet<u32>> = Map::new("received_echo");
+pub const RECEIVED_KEY1: Map<String, HashSet<u32>> = Map::new("received_key1");
+pub const RECEIVED_KEY2: Map<String, HashSet<u32>> = Map::new("received_key2");
+pub const RECEIVED_KEY3: Map<String, HashSet<u32>> = Map::new("received_key3");
+pub const RECEIVED_LOCK: Map<String, HashSet<u32>> = Map::new("received_lock");

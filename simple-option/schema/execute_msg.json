@@ -33,6 +33,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "abort"
+      ],
+      "properties": {
+        "abort": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

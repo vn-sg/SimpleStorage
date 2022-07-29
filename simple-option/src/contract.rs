@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -9,11 +7,12 @@ use cosmwasm_std::{
 
 use cw2::set_contract_version;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
 use crate::abort::handle_abort;
-use crate::utils::get_timeout;
+use crate::utils::{get_timeout, init_receice_map};
 use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -21,7 +20,7 @@ use crate::msg::{
     ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, EchoQueryResponse, AbortResponse,
 };
 use crate::state::{
-    State, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE, TEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE,
+    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -44,6 +43,9 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let state = State::new(msg.chain_id, msg.input, env.block.time);
     STATE.save(deps.storage, &state)?;
+    for msg_type in vec!["Suggest", "Proof"] {
+        RECEIVED.save(deps.storage, msg_type.to_string(), &HashSet::new())?;
+    }
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
@@ -60,26 +62,6 @@ pub fn handle_execute_input(
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
     let timeout: IbcTimeout = get_timeout(&env);
-    let mut state = STATE.load(deps.storage)?;
-
-    // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
-    let all_chain_ids: StdResult<Vec<_>> = CHANNELS
-        .keys(deps.storage, None, None, Order::Ascending)
-        .collect();
-    let all_chain_ids = all_chain_ids?;
-    for chain_id in all_chain_ids {
-        HIGHEST_REQ.save(deps.storage, chain_id, &0)?;
-        // Resetting highest_abort
-        HIGHEST_ABORT.save(deps.storage, chain_id, &-1)?;
-        RECEIVED_SUGGEST.save(deps.storage, chain_id, &false)?;
-        RECEIVED_PROOF.save(deps.storage, chain_id, &false)?;
-    }
-    // initialize the highest_request of oneself
-    HIGHEST_REQ.save(deps.storage, state.chain_id, &0)?;
-    // initialize the highest_abort of oneself
-    HIGHEST_ABORT.save(deps.storage, state.chain_id, &-1)?;
-    RECEIVED_SUGGEST.save(deps.storage, state.chain_id, &false)?;
-    RECEIVED_PROOF.save(deps.storage, state.chain_id, &false)?;
     /* a better way?
     CHANNELS
         .keys(deps.storage, None, None, Order::Ascending)
@@ -87,39 +69,9 @@ pub fn handle_execute_input(
     */
 
     // Initialization
-    // state.sent = HashSet::new();
-    // state.done = None;
-    // state.view = 0;
-    // state.cur_view = 0;
-    // state.key1 = 0;
-    // state.key2 = 0;
-    // state.key3 = 0;
-    // state.lock = 0;
-    // state.prev_key1 = -1;
-    // state.prev_key2 = -1;
-    // state.key1_val = input.clone();
-    // state.key2_val = input.clone();
-    // state.key3_val = input.clone();
-    // state.lock_val = input.clone();
-    // // Set suggestions and key2_proofs to empty set
-    // state.suggestions = Vec::new();
-    // state.key2_proofs = Vec::new();
-
-    // // Use block time..
-    // state.start_time = env.block.time.clone();
-
-    // // Set the primary to be (view mod n) + 1
-    // state.primary = state.view % state.n + 1;
-
-    // ////    process_messages() part     ////
-    // // initialize proofs to an empty set
-    // state.proofs = Vec::new();
-
-    // // reset values
-    // state.received_propose = true;
-
-
+    init_receice_map(deps.storage)?;
     // Re-init
+    let mut state = STATE.load(deps.storage)?;
     state.re_init(input, env.block.time.clone());
 
     // Store values to state
@@ -142,7 +94,7 @@ pub fn handle_execute_abort(
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     match &env.block.time.cmp(&end_time) {
         Ordering::Greater => {
-            handle_abort(deps.storage, state.view, state.chain_id);
+            handle_abort(deps.storage, state.view, state.chain_id)?;
             Ok(response)
         },
         _ => {
@@ -225,7 +177,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 fn query_echo(deps: Deps) -> StdResult<EchoQueryResponse> {
-    let query: StdResult<Vec<_>> = ECHO
+    let query: StdResult<Vec<_>> = RECEIVED_ECHO
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(EchoQueryResponse {
@@ -233,7 +185,7 @@ fn query_echo(deps: Deps) -> StdResult<EchoQueryResponse> {
     })
 }
 fn query_key1(deps: Deps) -> StdResult<Key1QueryResponse> {
-    let query: StdResult<Vec<_>> = KEY1
+    let query: StdResult<Vec<_>> = RECEIVED_KEY1
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(Key1QueryResponse {
@@ -241,7 +193,7 @@ fn query_key1(deps: Deps) -> StdResult<Key1QueryResponse> {
     })
 }
 fn query_key2(deps: Deps) -> StdResult<Key2QueryResponse> {
-    let query: StdResult<Vec<_>> = KEY2
+    let query: StdResult<Vec<_>> = RECEIVED_KEY2
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(Key2QueryResponse {
@@ -249,7 +201,7 @@ fn query_key2(deps: Deps) -> StdResult<Key2QueryResponse> {
     })
 }
 fn query_key3(deps: Deps) -> StdResult<Key3QueryResponse> {
-    let query: StdResult<Vec<_>> = KEY3
+    let query: StdResult<Vec<_>> = RECEIVED_KEY3
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(Key3QueryResponse {
@@ -257,7 +209,7 @@ fn query_key3(deps: Deps) -> StdResult<Key3QueryResponse> {
     })
 }
 fn query_lock(deps: Deps) -> StdResult<LockQueryResponse> {
-    let query: StdResult<Vec<_>> = LOCK
+    let query: StdResult<Vec<_>> = RECEIVED_LOCK
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(LockQueryResponse {
@@ -299,9 +251,10 @@ fn query_send_all_upon(deps: Deps) -> StdResult<SendAllUponResponse> {
 }
 
 fn query_received_suggest(deps: Deps) -> StdResult<ReceivedSuggestResponse> {
-    let req: StdResult<Vec<_>> = RECEIVED_SUGGEST
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect();
+    // let req: StdResult<Vec<_>> = RECEIVED_SUGGEST
+    //     .range(deps.storage, None, None, Order::Ascending)
+    //     .collect();
+    let req: StdResult<HashSet<_>> = RECEIVED.load(deps.storage, "Suggest".to_string());
     Ok(ReceivedSuggestResponse {
         received_suggest: req?,
     })

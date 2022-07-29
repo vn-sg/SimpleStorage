@@ -1,16 +1,17 @@
 
 use cosmwasm_std::{
-    StdResult, Order, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout
+    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout
 };
 
+use std::collections::HashSet;
 use std::convert::TryInto;
 
 use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
-    F};
+    F, get_chain_id};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
-    HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-    TEST_QUEUE, RECEIVED_PROOF, TEST
+    HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, LOCK, DONE, 
+    TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3
 };
 use crate::abort::{handle_abort};
 
@@ -59,6 +60,7 @@ pub fn receive_queue(
                             // send_all_upon_join_queue(<echo, k, v, view>)
                             if broadcast {
                                 let echo_packet = Msg::Echo { val: v, view };
+                                receive_queue(store, timeout.clone(), local_channel_id.clone(), vec![echo_packet.clone()], queue)?;
                                 let channel_ids = get_id_channel_pair(store)?;
                                 let state = STATE.load(store)?;
                                 for (chain_id, _channel_id) in &channel_ids {
@@ -152,9 +154,13 @@ pub fn receive_queue(
                 // When I'm the primary
                 if state.primary == state.chain_id {
 
+
+                    let mut receive_set= RECEIVED.load(store, "Suggest".to_string())?;
                     // upon receiving the first suggest message from a chain
-                    if !RECEIVED_SUGGEST.load(store, chain_id)? {
-                        RECEIVED_SUGGEST.save(store, chain_id, &true)?;
+                    if !receive_set.contains(&chain_id) {
+                        // Update the state
+                        receive_set.insert(chain_id);
+                        RECEIVED.save(store, "Suggest".to_string(), &receive_set)?;
                         // Check if the following conditions hold
                         if prev_key2 < key2 as i32 && key2 < view {
                             state.key2_proofs.push((key2, key2_val, prev_key2));
@@ -172,7 +178,7 @@ pub fn receive_queue(
                         }
 
                         // Check if |suggestions| >= n - f
-                        if state.suggestions.len() >= (state.n - F) as usize && !state.sent.contains("Propose") {
+                        if !state.sent.contains("Propose") && state.suggestions.len() >= (state.n - F) as usize {
                             state.sent.insert("Propose".to_string());
                             STATE.save(store, &state)?;
                             // Retrive the entry with the largest k
@@ -235,24 +241,17 @@ pub fn receive_queue(
                 let chain_id = match local_channel_id.clone() {
                     Some(id) => {
                         // Get the chain_id of the sender
-                        CHANNELS
-                        .range(store, None, None, Order::Ascending)
-                        .find_map(|res| { 
-                            let (chain_id,channel_id) = res.unwrap(); 
-                            if channel_id == id { 
-                                Some(chain_id) 
-                            } 
-                            else { None }
-                        }).unwrap()
+                        get_chain_id(store, id)
                     },
                     None => state.chain_id,
                 };
-    
-                // let chain_id = chain_id_res.unwrap();
-                let received_proof = RECEIVED_PROOF.load(store, chain_id)?;
-                if !received_proof {
+
+                // let received_proof = RECEIVED_PROOF.load(store, chain_id)?;
+                let mut receive_set= RECEIVED.load(store, "Proof".to_string())?;
+                if !receive_set.contains(&chain_id) {
                     // Update the state
-                    RECEIVED_PROOF.save(store, chain_id, &true)?;
+                    receive_set.insert(chain_id);
+                    RECEIVED.save(store, "Proof".to_string(), &receive_set)?;
                     
                     if view > key1 && key1 as i32 > prev_key1 {
                         let mut state = STATE.load(store)?;
@@ -281,7 +280,7 @@ pub fn receive_queue(
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else { 
-                    message_transfer_hop(store, val.clone(), view, queue, ECHO, key1_packet.clone(), timeout.clone())?;
+                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone())?;
 
                     if state.key1_val != val {
                         state.prev_key1 = state.key2 as i32;
@@ -302,7 +301,7 @@ pub fn receive_queue(
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    message_transfer_hop(store, val.clone(), view, queue, KEY1, key2_packet.clone(), timeout.clone())?;
+                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone())?;
                     let mut state = STATE.load(store)?;
                     if state.key2_val != val {
                         state.prev_key2 = state.key2 as i32;
@@ -320,7 +319,7 @@ pub fn receive_queue(
                 let key3_packet = Msg::Key3 { val: val.clone(), view };
                 if view != state.view {
                 } else {
-                    message_transfer_hop(store, val.clone(), view, queue, KEY2, key3_packet.clone(),timeout.clone())?;
+                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone())?;
                     let mut state = STATE.load(store)?;
                     state.key3 = view;
                     state.key3_val = val.clone();
@@ -336,7 +335,7 @@ pub fn receive_queue(
                 let lock_packet = Msg::Lock { val: val.clone(), view }; 
                 if view != state.view {
                 } else {
-                    message_transfer_hop(store, val.clone(), view, queue, KEY3, lock_packet.clone(), timeout.clone())?;
+                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone())?;
                     let mut state = STATE.load(store)?;
                     state.lock = view;
                     state.lock_val = val;
@@ -466,10 +465,6 @@ pub fn receive_queue(
         None => Ok(IbcReceiveResponse::new()),
     }
 
-
-
-    
-
 }
 
 
@@ -506,29 +501,53 @@ fn open_lock(store: &mut dyn Storage, proofs: Vec<(u32, String, i32)>) -> StdRes
     }
 }
 
-fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
-     queue: &mut Vec<Vec<Msg>>, 
-     message_type: cw_storage_plus::Map<String, u32>, msg_to_send: Msg, timeout: IbcTimeout) -> Result<(), StdError> {
+fn message_transfer_hop(
+    storage: &mut dyn Storage, 
+    val: String, 
+    view: u32,
+    queue: &mut Vec<Vec<Msg>>, 
+    message_type: cw_storage_plus::Map<String, HashSet<u32>>, 
+    msg_to_send: Msg, 
+    timeout: IbcTimeout, 
+    channel_id: Option<String>) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     // ignore messages from other views, other than abort, done and request messages
     if view != state.view {
     } else {
+        // detect if self-send
+        let chain_id = match channel_id {
+            Some(id) => {
+                // Get the chain_id of the sender
+                get_chain_id(storage, id)
+            },
+            None => state.chain_id,
+        };
         // Update local record of messages of type key
-        let action = |count: Option<u32>| -> StdResult<u32> {
+        let action = |count: Option<HashSet<u32>>| -> StdResult<HashSet<u32>> {
             match count {
-                Some(c) => Ok(c + 1),
-                None => Ok(1),
+                Some(set) => {
+                    // set.insert(chain_id);
+                    Ok(set)
+                },
+                None => {
+                    let set = HashSet::new();
+                    // set.insert(chain_id);
+                    Ok(set)
+                },
             }
         };
-        let count = message_type.update(storage, val.clone(), action)?;
+        let mut set = message_type.update(storage, val.clone(), action)?;
+        if !set.contains(&chain_id) {
+            set.insert(chain_id);
+            message_type.save(storage, val.clone(), &set)?;
+            // upon receiving from n - f parties with the same val
+            if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
+                state.sent.insert(msg_to_send.name().to_string());
+                STATE.save(storage, &state)?;
+                // send_all_upon_join_queue
+                send_all_upon_join_queue(storage, queue, msg_to_send, timeout)?;
 
-        // upon receiving from n - f parties with the same val
-        if !state.sent.contains(msg_to_send.name()) && count >= state.n - F {
-            state.sent.insert(msg_to_send.name().to_string());
-            STATE.save(storage, &state)?;
-            // send_all_upon_join_queue
-            send_all_upon_join_queue(storage, queue, msg_to_send, timeout)?;
-
+            }
         }
     }
     Ok(())

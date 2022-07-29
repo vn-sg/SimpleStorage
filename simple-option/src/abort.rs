@@ -1,15 +1,10 @@
 use cosmwasm_std::{
-    StdResult, Order, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, DepsMut
+    StdResult, Order, StdError, Storage
 };
 
-use std::convert::TryInto;
-
-use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
-    F, NUMBER_OF_NODES};
-use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
+use crate::utils::{F, NUMBER_OF_NODES};
 use crate::state::{
-    HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-    TEST_QUEUE, RECEIVED_PROOF, TEST, HIGHEST_ABORT, State
+    STATE, HIGHEST_ABORT
 };
 
 pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) -> Result<(), StdError> {

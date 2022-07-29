@@ -158,6 +158,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_abort_info"
+      ],
+      "properties": {
+        "get_abort_info": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }
