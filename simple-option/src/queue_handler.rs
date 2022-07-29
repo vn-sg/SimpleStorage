@@ -25,8 +25,13 @@ pub fn receive_queue(
 ) -> StdResult<IbcReceiveResponse> {
     let state = STATE.load(store)?;
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-
     for msg in queue_to_process {
+        // TODO skip...
+        // let key = msg.name().to_string();
+        // if(RECEIVED.load(store,key)?.contains(local_channel_id.unwrap()?)) {
+        //     continue;
+        // }
+    
         let result: StdResult<()> = match msg {
             Msg::Propose {
                 chain_id,
