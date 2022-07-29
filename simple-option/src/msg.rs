@@ -112,6 +112,7 @@ pub struct DoneQueryResponse {
 pub struct AbortResponse { 
     pub start_time: Timestamp,
     pub end_time: Timestamp,
+    pub current_time: Timestamp,
     pub is_timeout: bool,
     pub done: bool,
     pub should_abort: bool,
