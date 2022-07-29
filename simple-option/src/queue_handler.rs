@@ -510,10 +510,8 @@ fn message_transfer_hop(
     msg_to_send: Msg, 
     timeout: IbcTimeout, 
     channel_id: Option<String>) -> Result<(), StdError> {
-    let mut state = STATE.load(storage)?;
-    // ignore messages from other views, other than abort, done and request messages
-    if view != state.view {
-    } else {
+        let mut state = STATE.load(storage)?;
+        // ignore messages from other views, other than abort, done and request messages
         // detect if self-send
         let chain_id = match channel_id {
             Some(id) => {
@@ -549,9 +547,8 @@ fn message_transfer_hop(
 
             }
         }
+        Ok(())
     }
-    Ok(())
-}
 
 // send_all_upon_join_queue Operation
 pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet_msg: Msg, timeout: IbcTimeout) -> Result<(), StdError> {

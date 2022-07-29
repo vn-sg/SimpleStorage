@@ -8,6 +8,8 @@ use crate::ibc_msg::{
     Msg
 };
 
+
+use cw_storage_plus::{Item, Map};
 use crate::state::{
     CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK,
 };
@@ -53,6 +55,7 @@ pub fn get_chain_id(store: &mut dyn Storage, channel_id_to_get: String) -> u32 {
     }).unwrap()
 }
 
+// reset views for a new "Instance" of the IT-HS algorithm
 pub fn init_receive_map(store: &mut dyn Storage) -> StdResult<()> {
     let state = STATE.load(store)?;
     // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
@@ -63,16 +66,21 @@ pub fn init_receive_map(store: &mut dyn Storage) -> StdResult<()> {
     // initialize the highest_request of oneself
     HIGHEST_REQ.save(store, state.chain_id, &0)?;
     // initialize the highest_abort of oneself
-    HIGHEST_ABORT.save(store, state.chain_id, &-1)?;
     for chain_id in all_chain_ids {
         HIGHEST_REQ.save(store, chain_id, &0)?;
         // Resetting highest_abort
-        HIGHEST_ABORT.save(store, chain_id, &-1)?;
         // RECEIVED_SUGGEST.save(store, chain_id, &false)?;
         // RECEIVED_PROOF.save(store, chain_id, &false)?;
     }
     
-    // remove all records for previous values
+    reset_view_specific_maps(store)?;
+    Ok(())
+}
+
+// Reset maps that are specific to views...
+pub fn reset_view_specific_maps(store: &mut dyn Storage) -> StdResult<()> {
+
+        // remove all records for previous values
     let msg_types: StdResult<Vec<_>> = RECEIVED
         .keys(store, None, None, Order::Ascending)
         .collect();
@@ -80,42 +88,36 @@ pub fn init_receive_map(store: &mut dyn Storage) -> StdResult<()> {
                 RECEIVED.save(store, msg_type, &HashSet::new())?;
             }
 
-    let vals: StdResult<Vec<_>> = RECEIVED_ECHO
+    delete_map(store, RECEIVED_ECHO)?;
+    delete_map(store, RECEIVED_KEY1)?;
+    delete_map(store, RECEIVED_KEY2)?;
+    delete_map(store, RECEIVED_KEY3)?;
+    delete_map(store, RECEIVED_LOCK)?;
+        
+    let state = STATE.load(store)?;
+    // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
+    let all_chain_ids: StdResult<Vec<_>> = CHANNELS
         .keys(store, None, None, Order::Ascending)
         .collect();
-    for v in vals? {
-                RECEIVED_ECHO.remove(store, v);
-            }       
-    let vals: StdResult<Vec<_>> = RECEIVED_KEY1
-        .keys(store, None, None, Order::Ascending)
-        .collect();
-    for v in vals? {
-                RECEIVED_KEY1.remove(store, v);
-            }       
-    let vals: StdResult<Vec<_>> = RECEIVED_KEY2
-        .keys(store, None, None, Order::Ascending)
-        .collect();
-    for v in vals? {
-                RECEIVED_KEY2.remove(store, v);
-            }       
-    let vals: StdResult<Vec<_>> = RECEIVED_KEY3
-        .keys(store, None, None, Order::Ascending)
-        .collect();
-    for v in vals? {
-                RECEIVED_KEY3.remove(store, v);
-            }       
-    let vals: StdResult<Vec<_>> = RECEIVED_LOCK
-        .keys(store, None, None, Order::Ascending)
-        .collect();
-    for v in vals? {
-                RECEIVED_LOCK.remove(store, v);
-            }       
-
-    // RECEIVED_SUGGEST.save(store, state.chain_id, &false)?;
-    // RECEIVED_PROOF.save(store, state.chain_id, &false)?;
-
+    let all_chain_ids = all_chain_ids?;
+    HIGHEST_ABORT.save(store, state.chain_id, &-1)?;
+    for chain_id in all_chain_ids {
+        // Resetting highest_abort
+        HIGHEST_ABORT.save(store, chain_id, &-1)?;
+    }
     Ok(())
 }
+
+fn delete_map(store: &mut dyn Storage, map: Map<String, HashSet<u32>>)  -> StdResult<()> {
+    let vals: StdResult<Vec<_>> = map
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in vals? {
+        map.remove(store, v);
+    }       
+    Ok(())
+}
+
 
 pub fn get_timeout(env: &Env) -> IbcTimeout {
     env.block.time.plus_seconds(PACKET_LIFETIME).into()

@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
 use crate::abort::handle_abort;
-use crate::utils::{get_timeout, init_receive_map};
+use crate::utils::{get_timeout, init_receive_map, reset_view_specific_maps};
 use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -95,6 +95,7 @@ pub fn handle_execute_abort(
                 Ok(_) => {
                     // Trigger view change reset some values..
                     // HIGHEST_ABORT
+                    reset_view_specific_maps(deps.storage)?;
                     view_change(deps, get_timeout(&env))
                 }
                 Err(err) => Err(ContractError::CustomError {val: err.to_string()}),
