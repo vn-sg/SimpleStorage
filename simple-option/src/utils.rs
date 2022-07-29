@@ -20,7 +20,7 @@ pub const IBC_APP_VERSION: &str = "simple_storage";
 
 use crate::ContractError;
 
-pub fn get_timeout(env: Env) -> IbcTimeout {
+pub fn get_timeout(env: &Env) -> IbcTimeout {
     env.block.time.plus_seconds(PACKET_LIFETIME).into()
 }
 

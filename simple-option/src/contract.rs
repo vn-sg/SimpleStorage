@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 
 use cw2::set_contract_version;
+use std::cmp::Ordering;
 
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
@@ -15,7 +16,7 @@ use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
     ChannelsResponse, ExecuteMsg, HighestReqResponse, InstantiateMsg, QueryMsg,
-    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, EchoQueryResponse,
+    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, EchoQueryResponse, AbortResponse,
 };
 use crate::state::{
     State, CHANNELS, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED_PROOF, RECEIVED_SUGGEST, STATE, TEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE,
@@ -29,15 +30,17 @@ pub const REQUEST_REPLY_ID: u64 = 100;
 pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
+pub const VIEW_TIMEOUT_SECONDS: u64 = 60;
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State::new(msg.chain_id, msg.input);
+    let state = State::new(msg.chain_id, msg.input, env.block.time);
     STATE.save(deps.storage, &state)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -50,10 +53,11 @@ pub fn instantiate(
 pub fn handle_execute_input(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     input: String,
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
-    let timeout: IbcTimeout = get_timeout(env);
+    let timeout: IbcTimeout = get_timeout(&env);
     let mut state = STATE.load(deps.storage)?;
 
     // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
@@ -86,7 +90,6 @@ pub fn handle_execute_input(
     state.sent_done = false;
     state.view = 0;
     state.cur_view = 0;
-    state.primary = 1;
     state.key1 = 0;
     state.key2 = 0;
     state.key3 = 0;
@@ -101,8 +104,11 @@ pub fn handle_execute_input(
     state.suggestions = Vec::new();
     state.key2_proofs = Vec::new();
 
+    // Use block time..
+    state.start_time = env.block.time.clone();
+
     // Set the primary to be (view mod n) + 1
-    state.primary = state.view % 4 + 1;
+    state.primary = state.view % state.n + 1;
 
     ////    process_messages() part     ////
     // initialize proofs to an empty set
@@ -120,16 +126,35 @@ pub fn handle_execute_input(
     // broadcast message
 }
 
+pub fn handle_execute_abort(
+    deps: DepsMut,
+    env: Env
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    let response = Response::new()
+        .add_attribute("action", "execute")
+        .add_attribute("msg_type", "abort");
+    match state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS).cmp(&env.block.time) {
+        Ordering::Greater => {
+            handle_abort(deps.storage, state.view, state.chain_id);
+            Ok(response)
+        },
+        _ => {
+            Err(ContractError::CustomError { val: "Invalid Abort".to_string() })
+        }
+    } 
+}
+
 // execute entry_point is used for beginning new instance of IT-HS consensus
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Input { value } => handle_execute_input(deps, env, value),
+        ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
         ExecuteMsg::ForceAbort {} => {
             //TODO add abort timestamp validation and start new view
             let state = STATE.load(deps.storage)?;
@@ -143,7 +168,8 @@ pub fn execute(
                     val: error_msg.to_string(),
                 }),
             }
-        }
+        },
+        ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
     }
 
     // let channel_ids = state.channel_ids.clone();
@@ -188,7 +214,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetKey3 {} => to_binary(&query_key3(deps)?),
         QueryMsg::GetLock {} => to_binary(&query_lock(deps)?),
         QueryMsg::GetDone {} => to_binary(&query_done(deps)?),
-    }
+        QueryMsg::GetAbortInfo {} => to_binary(&query_abort_info(deps)?),
+     }
 }
 
 fn query_echo(deps: Deps) -> StdResult<EchoQueryResponse> {
@@ -300,6 +327,32 @@ fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
         port_chan_pair: channels?,
     })
 }
+
+fn query_abort_info(deps: Deps) -> StdResult<AbortResponse> {
+    let state = STATE.load(deps.storage)?;
+    // let channels = channels?;
+    
+    let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
+    let timeout = match end_time.cmp(&state.start_time) {
+        Ordering::Greater => true,
+        _ => false,
+    };
+
+    let is_input_finished = match state.done {
+        Some(_) => true,
+        _ => false,
+    };
+    
+    Ok(AbortResponse {
+        start_time: state.start_time,
+        end_time: state.start_time.plus_seconds(60),
+        is_timeout: timeout,
+        done: is_input_finished,
+        should_abort: (timeout && is_input_finished),
+    })
+}
+
+
 /*
 fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
     let value = VARS.may_load(deps.storage, &key)?;
@@ -316,7 +369,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
         // REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
         REQUEST_REPLY_ID => Ok(Response::new()),
-        SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(env), msg),
+        SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(&env), msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }

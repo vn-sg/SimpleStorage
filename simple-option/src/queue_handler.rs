@@ -10,7 +10,7 @@ use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage,
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-    TEST_QUEUE, RECEIVED_PROOF, TEST, HIGHEST_ABORT, State
+    TEST_QUEUE, TEST, HIGHEST_ABORT, State, DEDUPE_PACKET, RECEIVED_ECHO, RECEIVED_KEY_1, RECEIVED_KEY_2, RECEIVED_PROOF
 };
 use crate::abort::{handle_abort};
 
@@ -24,6 +24,7 @@ pub fn receive_queue(
 ) -> StdResult<IbcReceiveResponse> {
     let state = STATE.load(store)?;
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+
     for msg in queue_to_process {
         let result: StdResult<()> = match msg {
             Msg::Propose {
@@ -271,10 +272,30 @@ pub fn receive_queue(
 
             // Handle Echo
             {
+
+                // detect if self-send
+                let chain_id = match local_channel_id.clone() {
+                    Some(id) => {
+                        // Get the chain_id of the sender
+                        CHANNELS
+                        .range(store, None, None, Order::Ascending)
+                        .find_map(|res| { 
+                            let (chain_id,channel_id) = res.unwrap(); 
+                            if channel_id == id { 
+                                Some(chain_id) 
+                            } 
+                            else { None }
+                        }).unwrap()
+                    },
+                    None => state.chain_id,
+                };
+
                 let key1_packet = Msg::Key1 { val: val.clone(), view };
                 let mut state = STATE.load(store)?;
+                let received_key_1 = RECEIVED_KEY_1.load(store, chain_id)?;
+
                 // ignore messages from other views, other than abort, done and request messages
-                if view != state.view {
+                if view != state.view && received_key_1 {
                 } else { 
                     message_transfer_hop(store, val.clone(), view, queue, ECHO, key1_packet.clone(), timeout.clone())?;
 
