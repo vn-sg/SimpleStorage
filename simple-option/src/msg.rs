@@ -28,6 +28,7 @@ pub enum QueryMsg {
     GetChannels { },
     GetTest { },
     GetHighestReq { },
+    GetHighestAbort { },
     GetReceivedSuggest { },
     GetSendAllUpon { },
     GetTestQueue { },
@@ -38,6 +39,7 @@ pub enum QueryMsg {
     GetLock { },
     GetDone { },
     GetAbortInfo { },
+    GetDebug { },
 }
 
 // We define a custom struct for each query response
@@ -118,4 +120,14 @@ pub struct AbortResponse {
     pub is_timeout: bool,
     pub done: bool,
     pub should_abort: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DebugResponse { 
+    pub debug: Vec<(u32, String)>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct HighestAbortResponse {
+    pub highest_abort: Vec<(u32, i32)>
 }

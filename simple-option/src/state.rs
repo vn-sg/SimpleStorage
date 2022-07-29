@@ -135,6 +135,7 @@ pub const DONE: Map<String, u32> = Map::new("done");
 // TESTING..
 pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
 pub const TEST_QUEUE: Map<u32, (u32, Vec<Msg>)> = Map::new("test_queue");
+pub const DEBUG: Map<u32, String> = Map::new("debug");
 
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

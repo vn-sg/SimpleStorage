@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::vec;
 
 use cosmwasm_std::{
-    DepsMut, to_binary, IbcTimeout, Response, IbcMsg
+    DepsMut, to_binary, IbcTimeout, Response, IbcMsg, Storage
 };
 
 use crate::ibc_msg::{PacketMsg, Msg};
@@ -14,9 +14,9 @@ use crate::state::{
 use crate::ContractError;
 use crate::utils::{get_id_channel_pair};
 
-pub fn view_change(deps: DepsMut, timeout: IbcTimeout) -> Result<Response, ContractError> {
+pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout) -> Result<Response, ContractError> {
 
-    let msgs = create_queue_view_change(deps, timeout)?;
+    let msgs = create_queue_view_change(storage, timeout)?;
     Ok(Response::new()
         .add_messages(msgs)
         .add_attribute("action", "execute")
@@ -24,11 +24,11 @@ pub fn view_change(deps: DepsMut, timeout: IbcTimeout) -> Result<Response, Contr
 }
 
 pub fn create_queue_view_change(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     timeout: IbcTimeout,
 ) -> Result<Vec<IbcMsg>, ContractError> {
     // load the state
-    let state = STATE.load(deps.storage)?;
+    let state = STATE.load(storage)?;
     // Add Request message to packets_to_be_broadcasted
     let request_packet = Msg::Request {
         view: state.view,
@@ -46,7 +46,7 @@ pub fn create_queue_view_change(
     let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
 
     // Send Request to all parties
-    send_all_party(deps.storage, &mut queue, request_packet, timeout.clone())?;
+    send_all_party(storage, &mut queue, request_packet, timeout.clone())?;
 
     
     let suggest_packet = Msg::Suggest {
@@ -60,27 +60,27 @@ pub fn create_queue_view_change(
     };
     // Upon highest_request[primary] == view
     if state.chain_id != state.primary {
-        if state.view == HIGHEST_REQ.load(deps.storage, state.primary)? {
+        if state.view == HIGHEST_REQ.load(storage, state.primary)? {
             queue[state.primary as usize].push(suggest_packet);
         }
     } else {
-        receive_queue(deps.storage, timeout.clone(), None, vec![suggest_packet], &mut queue)?;
+        receive_queue(storage, timeout.clone(), None, vec![suggest_packet], &mut queue)?;
     }
-    let mut state = STATE.load(deps.storage)?;
+    let mut state = STATE.load(storage)?;
 
     // send_all_upon_join(Proof)
-    send_all_upon_join_queue(deps.storage, &mut queue, proof_packet, timeout.clone())?;
+    send_all_upon_join_queue(storage, &mut queue, proof_packet, timeout.clone())?;
     
     let mut msgs = Vec::new();
     for (chain_id, msg_queue) in queue.iter().enumerate() {
         //// TESTING /////
-        TEST_QUEUE.save(deps.storage, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
+        TEST_QUEUE.save(storage, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
         state.current_tx_id += 1;
-        STATE.save(deps.storage, &state)?;
+        STATE.save(storage, &state)?;
         if chain_id != state.chain_id as usize {
             // When chain wish to send some msgs to dest chain
             if msg_queue.len() > 0 {
-                let channel_id = CHANNELS.load(deps.storage, chain_id.try_into().unwrap())?;
+                let channel_id = CHANNELS.load(storage, chain_id.try_into().unwrap())?;
                 let msg = IbcMsg::SendPacket {
                     channel_id,
                     data: to_binary(&PacketMsg::MsgQueue ( msg_queue.to_vec() ) )?,

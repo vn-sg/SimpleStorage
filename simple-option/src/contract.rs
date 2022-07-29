@@ -2,8 +2,10 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg,
+    StdError, StdResult, SubMsg, Storage,
 };
+
+use std::convert::TryInto;
 
 use cw2::set_contract_version;
 use std::cmp::Ordering;
@@ -11,16 +13,18 @@ use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
-use crate::abort::handle_abort;
+use crate::queue_handler::{receive_queue};
 use crate::utils::{get_timeout, init_receive_map, reset_view_specific_maps};
 use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
     ChannelsResponse, ExecuteMsg, HighestReqResponse, InstantiateMsg, QueryMsg,
-    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, EchoQueryResponse, AbortResponse,
+    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, 
+    Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, 
+    EchoQueryResponse, AbortResponse, HighestAbortResponse,
 };
 use crate::state::{
-    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, HIGHEST_ABORT,
+    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, HIGHEST_ABORT, DEBUG
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -31,7 +35,7 @@ pub const REQUEST_REPLY_ID: u64 = 100;
 pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
-pub const VIEW_TIMEOUT_SECONDS: u64 = 60;
+pub const VIEW_TIMEOUT_SECONDS: u64 = 10;
 
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -78,7 +82,7 @@ pub fn handle_execute_input(
     STATE.save(deps.storage, &state)?;
 
     // By calling view_change(), Request messages will be delivered to all chains that we established a channel with
-    view_change(deps, timeout.clone())
+    view_change(deps.storage, timeout.clone())
 
     // broadcast message
 }
@@ -91,15 +95,31 @@ pub fn handle_execute_abort(
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
-            match handle_abort(deps.storage, state.view, state.chain_id) {
-                Ok(_) => {
-                    // Trigger view change reset some values..
-                    // HIGHEST_ABORT
-                    reset_view_specific_maps(deps.storage)?;
-                    view_change(deps, get_timeout(&env))
-                }
-                Err(err) => Err(ContractError::CustomError {val: err.to_string()}),
-            }
+
+            let abort_packet = Msg::SelfAbort { view: state.view, chain_id: state.chain_id};
+            let mut queue: Vec<Vec<Msg>> = vec!(vec![abort_packet.clone()]; state.n.try_into().unwrap());
+
+            receive_queue(deps.storage, 
+                get_timeout(&env), None, 
+                vec![abort_packet.clone()], &mut queue)?;
+
+            // let state = STATE.load(deps.storage)?;
+            // if previous_view != state.view {
+            //     let t = format!("STATE IS NOT EQUAL PREVIOUS_VIEW = {} STATE.VIEW = {}", previous_view, state.view);
+            //     DEBUG.save(deps.storage, 100, &t)?;                        
+            //     reset_view_specific_maps(deps.storage)?;
+            //     view_change(deps, get_timeout(&env))    
+            // } else {
+            //     let t = format!("STATE IS STILL EQUAL EQUAL PREVIOUS_VIEW = {} STATE.VIEW = {}", previous_view, state.view);
+            //     DEBUG.save(deps.storage, 200, &t)?;                        
+            //     Ok(Response::new()
+            //         .add_attribute("action", "execute")
+            //         .add_attribute("msg_type", "abort"))        
+            // }
+            Ok(Response::new()
+                .add_attribute("action", "execute")
+                .add_attribute("msg_type", "abort"))        
+
         },
         _ => {
             // handle_abort(deps.storage, state.view, state.chain_id);
@@ -120,18 +140,19 @@ pub fn execute(
     match msg {
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
         ExecuteMsg::ForceAbort {} => {
+            todo!()
             //TODO add abort timestamp validation and start new view
-            let state = STATE.load(deps.storage)?;
-            let result = handle_abort(deps.storage, state.view, state.chain_id);
-            let response = Response::new()
-                .add_attribute("action", "execute")
-                .add_attribute("msg_type", "get");
-            match result {
-                Ok(_) => Ok(response),
-                Err(error_msg) => Err(ContractError::CustomError {
-                    val: error_msg.to_string(),
-                }),
-            }
+            // let state = STATE.load(deps.storage)?;
+            // let result = handle_abort(deps.storage, state.view, state.chain_id);
+            // let response = Response::new()
+            //     .add_attribute("action", "execute")
+            //     .add_attribute("msg_type", "get");
+            // match result {
+            //     Ok(_) => Ok(response),
+            //     Err(error_msg) => Err(ContractError::CustomError {
+            //         val: error_msg.to_string(),
+            //     }),
+            // }
         },
         ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
     }
@@ -179,6 +200,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetLock {} => to_binary(&query_lock(deps)?),
         QueryMsg::GetDone {} => to_binary(&query_done(deps)?),
         QueryMsg::GetAbortInfo {} => to_binary(&query_abort_info(deps, env)?),
+        QueryMsg::GetDebug {} =>  to_binary(&query_debug(deps)?),
+        QueryMsg::GetHighestAbort {} => to_binary(&query_highest_abort(deps)?),
      }
 }
 
@@ -275,6 +298,15 @@ fn query_highest_request(deps: Deps) -> StdResult<HighestReqResponse> {
     })
 }
 
+fn query_highest_abort(deps: Deps) -> StdResult<HighestAbortResponse> {
+    let req: StdResult<Vec<_>> = HIGHEST_ABORT
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(HighestAbortResponse {
+        highest_abort: req?,
+    })
+}
+
 fn query_test(deps: Deps) -> StdResult<Vec<(u32, Vec<IbcMsg>)>> {
     let test: StdResult<Vec<_>> = TEST
         .range(deps.storage, None, None, Order::Ascending)
@@ -316,6 +348,13 @@ fn query_abort_info(deps: Deps, env: Env) -> StdResult<AbortResponse> {
         done: is_input_finished,
         should_abort: (timeout && is_input_finished),
     })
+}
+
+fn query_debug(deps: Deps) -> StdResult<Vec<(u32, String)>> {
+    let test: StdResult<Vec<_>> = DEBUG
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(test?)
 }
 
 

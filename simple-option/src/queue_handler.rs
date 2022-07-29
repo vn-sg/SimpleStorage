@@ -416,7 +416,12 @@ pub fn receive_queue(
             }, 
             Msg::Abort { view, chain_id } => 
             {
-                handle_abort(store, view, chain_id)
+                handle_abort(store, queue, view, chain_id, timeout.clone())
+            },
+            Msg::SelfAbort { view, chain_id } => 
+            {
+                let abort_packet = Msg::Abort { view: state.view, chain_id: state.chain_id};
+                send_all_party(store, queue, abort_packet, timeout.clone())
             }
         };
         

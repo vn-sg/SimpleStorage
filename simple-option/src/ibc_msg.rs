@@ -45,6 +45,10 @@ pub enum Msg {
         view: u32,
         chain_id: u32,
     },
+    SelfAbort {
+        view: u32,
+        chain_id: u32,
+    },
     Propose { 
         chain_id: u32,
         k: u32, 
@@ -92,6 +96,7 @@ impl Msg {
             Msg::Key3 { val: _, view : _} => stringify!(Key3),
             Msg::Lock { val: _, view : _} => stringify!(Lock),
             Msg::Done { val: _ } => stringify!(Done),
+            Msg::SelfAbort { view, chain_id } => stringify!(SelfAbort),
         }
     }
 }

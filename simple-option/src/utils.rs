@@ -86,7 +86,7 @@ pub fn reset_view_specific_maps(store: &mut dyn Storage) -> StdResult<()> {
         .collect();
     for msg_type in msg_types? {
                 RECEIVED.save(store, msg_type, &HashSet::new())?;
-            }
+    }
 
     delete_map(store, RECEIVED_ECHO)?;
     delete_map(store, RECEIVED_KEY1)?;

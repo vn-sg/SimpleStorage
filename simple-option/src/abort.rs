@@ -1,13 +1,26 @@
 use cosmwasm_std::{
-    StdResult, Order, StdError, Storage
+    StdResult, Order, StdError, Storage, IbcTimeout
 };
 
-use crate::utils::{F, NUMBER_OF_NODES};
+use crate::utils::{F, NUMBER_OF_NODES, get_id_channel_pair_from_storage, get_timeout};
 use crate::state::{
     STATE, HIGHEST_ABORT
 };
 
-pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) -> Result<(), StdError> {
+
+use crate::utils::{
+    reset_view_specific_maps
+};
+
+use crate::view_change::{
+    view_change
+};
+
+use crate::ibc_msg::Msg;
+
+pub fn handle_abort(storage: &mut dyn Storage, 
+                    queue: &mut Vec<Vec<Msg>>, view: u32, 
+                    sender_chain_id: u32, timeout: IbcTimeout) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     
     if ((HIGHEST_ABORT.load(storage, sender_chain_id)? + 1) as u32)< (view+1) {
@@ -32,7 +45,12 @@ pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) 
         
         let u = vector_values[ (F+1-1) as usize]; 
         if u > HIGHEST_ABORT.load(storage, state.chain_id)? {
-            if u >= -1 {
+            if u > -1 {
+                let abort_packet = Msg::Abort { view: u as u32, chain_id: state.chain_id};
+                let channel_ids = get_id_channel_pair_from_storage(storage)?;
+                for (chain_id, _channel_id) in &channel_ids {
+                    queue[*chain_id as usize].push(abort_packet.clone());
+                }
                 HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
                     match option {
                         Some(_val) => Ok(u),
@@ -42,10 +60,27 @@ pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) 
             }
         }
 
+        let highest_abort_vector_pair: StdResult<Vec<_>> = HIGHEST_ABORT
+            .range(storage, None, None, Order::Ascending)
+            .collect();
+        let mut vector_values = match highest_abort_vector_pair {
+            Ok(vecs) => { 
+                let temp = vecs.iter().map(|(_key, value)| value.clone()).collect::<Vec<i32>>();
+                temp
+            }
+            Err(_) => return Err(StdError::GenericErr { msg: "Error nth".to_string()}),
+        };
+        vector_values.sort();
+        
         let w = vector_values[(state.n-F-1) as usize];
         if (w+1) as u32 >= state.view {
+            let previous_view = state.view;
             state.view = (w + 1) as u32;
             STATE.save(storage, &state)?;
+            if previous_view != state.view {
+                reset_view_specific_maps(storage)?;
+                view_change(storage, timeout);
+            }
         }
     }
     Ok(())
