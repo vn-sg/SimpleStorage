@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use cosmwasm_std::IbcMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -32,10 +34,11 @@ pub struct State {
     pub suggestions: Vec<(u32, String)>,
     pub key2_proofs: Vec<(u32, String, i32)>,
     pub proofs: Vec<(u32, String, i32)>,
-    pub is_first_propose: bool,
-    pub is_first_req_ack: bool,
-    pub sent_suggest: bool,
-    pub sent_done: bool,
+    pub received_propose: bool,
+    // pub is_first_req_ack: bool,
+    // pub sent_suggest: bool,
+    // pub sent_done: bool,
+    pub sent: HashSet<String>,
     pub done: Option<String>
 }
 
@@ -64,11 +67,12 @@ impl State {
             suggestions: Vec::new(),
             key2_proofs: Vec::new(),
             proofs: Vec::new(),
-            is_first_propose: true,
-            is_first_req_ack: true,
-            sent_suggest: false,
+            received_propose: true,
+            // is_first_req_ack: true,
+            // sent_suggest: false,
+            // sent_done: false,
+            sent: HashSet::new(),
             done: None,
-            sent_done: false,
         }
     }
 }
@@ -98,7 +102,7 @@ impl State {
 //     pub suggestions: Vec<(u32, String)>,
 //     pub key2_proofs: Vec<(u32, String, i32)>,
 //     pub proofs: Vec<(u32, String, i32)>,
-//     pub is_first_propose: bool,
+//     pub received_propose: bool,
 //     pub is_first_req_ack: bool,
 //     pub sent_suggest: bool
 // }

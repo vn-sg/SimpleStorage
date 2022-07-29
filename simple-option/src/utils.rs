@@ -10,6 +10,24 @@ use crate::state::{
     CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ
 };
 
+// macro_rules! enum_to_str {
+//     (enum $name:ident {
+//         $($variant:ident = $val:expr),*,
+//     }) => {
+//         enum $name {
+//             $($variant = $val),*
+//         }
+
+//         impl $name {
+//             fn name(&self) -> &'static str {
+//                 match self {
+//                     $($name::$variant => stringify!($variant)),*
+//                 }
+//             }
+//         }
+//     };
+// }
+
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
 /// Setting up constant

@@ -76,6 +76,26 @@ pub enum Msg {
         val: String
     },
 }
+
+impl Msg {
+    // name return the static str version of the Msg type
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            Msg::Request { view: _, chain_id: _ } => stringify!(Request),
+            Msg::Suggest { chain_id: _, view: _, key2: _, key2_val: _, prev_key2: _, key3: _, key3_val: _ } => stringify!(Suggest),
+            Msg::Proof { key1: _, key1_val: _, prev_key1: _, view: _ } => stringify!(Proof),
+            Msg::Abort { view: _, chain_id : _} => stringify!(Abort),
+            Msg::Propose { chain_id: _, k: _, v: _, view: _ } => stringify!(Propose),
+            Msg::Echo { val: _, view : _} => stringify!(Echo),
+            Msg::Key1 { val: _, view : _} => stringify!(Key1),
+            Msg::Key2 { val: _, view : _} => stringify!(Key2),
+            Msg::Key3 { val: _, view : _} => stringify!(Key3),
+            Msg::Lock { val: _, view : _} => stringify!(Lock),
+            Msg::Done { val: _ } => stringify!(Done),
+        }
+    }
+}
+
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // #[serde(rename_all = "snake_case")]
 // pub struct MsgQueue {

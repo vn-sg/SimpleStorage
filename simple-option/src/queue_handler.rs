@@ -1,16 +1,16 @@
 
 use cosmwasm_std::{
-    StdResult, Order, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, DepsMut
+    StdResult, Order, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout
 };
 
 use std::convert::TryInto;
 
 use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
-    F, NUMBER_OF_NODES};
+    F};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-    TEST_QUEUE, RECEIVED_PROOF, TEST, HIGHEST_ABORT, State
+    TEST_QUEUE, RECEIVED_PROOF, TEST
 };
 use crate::abort::{handle_abort};
 
@@ -39,10 +39,10 @@ pub fn receive_queue(
                     if view != state.view {
                     } else {
                         // upon receiving the first propose message from a chain
-                        if chain_id == state.primary && state.is_first_propose {
+                        if chain_id == state.primary && state.received_propose {
                             // RECEIVED_PROPOSE.save(store, chain_id, &true)?;
                             let mut broadcast = false;
-                            state.is_first_propose = false;
+                            state.received_propose = false;
                             STATE.save(store, &state)?;
                             
                             // First case we should broadcast Echo message
@@ -102,18 +102,19 @@ pub fn receive_queue(
                         HIGHEST_REQ.save(store, chain_id, &view)?;
                             
                         if view == state.view {
+                            let packet = Msg::Suggest {
+                                chain_id: state.chain_id,
+                                view: state.view,
+                                key2: state.key2,
+                                key2_val: state.key2_val.clone(),
+                                prev_key2: state.prev_key2,
+                                key3: state.key3,
+                                key3_val: state.key3_val.clone(),
+                            };
                             // Check if we are ready to send Suggest to Primary
-                            if chain_id == state.primary && !state.sent_suggest {
-                                let packet = Msg::Suggest {
-                                    chain_id: state.chain_id,
-                                    view: state.view,
-                                    key2: state.key2,
-                                    key2_val: state.key2_val.clone(),
-                                    prev_key2: state.prev_key2,
-                                    key3: state.key3,
-                                    key3_val: state.key3_val.clone(),
-                                };
-                                state.sent_suggest = true;
+                            if chain_id == state.primary && !state.sent.contains(packet.name()) {
+                                
+                                state.sent.insert(packet.name().to_string());
                                 STATE.save(store, &state)?;
                                 queue[chain_id as usize].push(packet);
                             }
@@ -170,7 +171,9 @@ pub fn receive_queue(
                         }
 
                         // Check if |suggestions| >= n - f
-                        if state.suggestions.len() >= (state.n - F) as usize {
+                        if state.suggestions.len() >= (state.n - F) as usize && !state.sent.contains("Propose") {
+                            state.sent.insert("Propose".to_string());
+                            STATE.save(store, &state)?;
                             // Retrive the entry with the largest k
                             let (k, v) = state.suggestions.iter().max().unwrap();
                             let propose_packet = Msg::Propose {
@@ -356,9 +359,11 @@ pub fn receive_queue(
                     };
                     let count = LOCK.update(store, val.clone(), action)?;
 
+                    let done_packet = Msg::Done { val: val.clone() };
+
                     // upon receiving from n - f parties with the same val
-                    if count >= state.n - F && !state.sent_done {
-                        state.sent_done = true;
+                    if count >= state.n - F && !state.sent.contains(done_packet.name()) {
+                        state.sent.insert(done_packet.name().to_string());
                         STATE.save(store, &state)?;
 
                         // send <done, val> to every party
@@ -382,12 +387,13 @@ pub fn receive_queue(
                 };
                 let count = DONE.update(store, val.clone(), action)?;
 
+                let done_packet = Msg::Done { val: val.clone() };
                 // Currently we don't have enough nodes to test with F + 1
                 if count >= F + 1 {
-                    if !state.sent_done {
-                        state.sent_done = true;
+                    if !state.sent.contains(done_packet.name()) {
+                        state.sent.insert(done_packet.name().to_string());
                         STATE.save(store, &state)?;
-                        let done_packet = Msg::Done { val: val.clone() };
+                        
                         send_all_party(store, queue, done_packet, timeout.clone())?;
                     }
 
@@ -501,7 +507,7 @@ fn open_lock(store: &mut dyn Storage, proofs: Vec<(u32, String, i32)>) -> StdRes
 fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
      queue: &mut Vec<Vec<Msg>>, 
      message_type: cw_storage_plus::Map<String, u32>, msg_to_send: Msg, timeout: IbcTimeout) -> Result<(), StdError> {
-    let state = STATE.load(storage)?;
+    let mut state = STATE.load(storage)?;
     // ignore messages from other views, other than abort, done and request messages
     if view != state.view {
     } else {
@@ -515,8 +521,9 @@ fn message_transfer_hop(storage: &mut dyn Storage, val: String, view: u32,
         let count = message_type.update(storage, val.clone(), action)?;
 
         // upon receiving from n - f parties with the same val
-        if count >= state.n - F {
-
+        if state.sent.contains(msg_to_send.name()) && count >= state.n - F {
+            state.sent.insert(msg_to_send.name().to_string());
+            STATE.save(storage, &state)?;
             // send_all_upon_join_queue
             send_all_upon_join_queue(storage, queue, msg_to_send, timeout)?;
 

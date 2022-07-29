@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -81,9 +83,10 @@ pub fn handle_execute_input(
     */
 
     // Initialization
-    state.sent_suggest = false;
+    // state.sent_suggest = false;
+    // state.sent_done = false;
+    state.sent = HashSet::new();
     state.done = None;
-    state.sent_done = false;
     state.view = 0;
     state.cur_view = 0;
     state.primary = 1;
@@ -109,7 +112,7 @@ pub fn handle_execute_input(
     state.proofs = Vec::new();
 
     // reset values
-    state.is_first_propose = true;
+    state.received_propose = true;
 
     // Store values to state
     STATE.save(deps.storage, &state)?;

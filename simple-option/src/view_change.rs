@@ -63,9 +63,9 @@ pub fn create_queue_view_change(
             };
             if state.chain_id != state.primary {
                 // Upon highest_request[primary] = view
-                if highest_request == state.view && !state.sent_suggest {
+                if highest_request == state.view && !state.sent.contains(packet.name()){
                     // Contruct Suggest message to delivery to primary
-                    state.sent_suggest = true;
+                    state.sent.insert(packet.name().to_string());
                     STATE.save(deps.storage, &state)?;
                     queue[*chain_id as usize].push(packet);
                     // queue.push(packet);
