@@ -28,6 +28,13 @@ export FLAG1="--node $CHAIN_1_NODE --chain-id ibc-1 $BASE_FLAG"
 export FLAG2="--node $CHAIN_2_NODE --chain-id ibc-2 $BASE_FLAG"
 export FLAG3="--node $CHAIN_3_NODE --chain-id ibc-3 $BASE_FLAG"
 
+export KEYRING_0='--keyring-backend test --keyring-dir ./data/ibc-0'
+export KEYRING_1='--keyring-backend test --keyring-dir ./data/ibc-1'
+export KEYRING_2='--keyring-backend test --keyring-dir ./data/ibc-2'
+export KEYRING_3='--keyring-backend test --keyring-dir ./data/ibc-3'
+
+
+
 start_rly1() {
   rly start mypath0-1 --debug-addr localhost:7597
 }
@@ -459,6 +466,54 @@ execute() {
   exit 0
 }
 
+cron_abort() {
+
+
+  if [ $2 = "0" ]; then 
+    export NODE=$NODE_0
+    export CHAIN="ibc-0"
+    export FLAG=$FLAG0
+    export KEYRING=$KEYRING_0
+  fi
+  if [ $2 = "1" ]; then 
+    export NODE=$NODE_1
+    export CHAIN="ibc-1"
+    export FLAG=$FLAG1
+    export KEYRING=$KEYRING_1
+  fi
+  if [ $2 = "2" ]; then 
+    export NODE=$NODE_2
+    export CHAIN="ibc-2"
+    export FLAG=$FLAG2
+    export KEYRING=$KEYRING_2
+  fi
+  if [ $2 = "3" ]; then 
+    export NODE=$NODE_3
+    export CHAIN="ibc-3"
+    export FLAG=$FLAG3
+    export KEYRING=$KEYRING_3
+  fi
+
+  # Retrieve the lastest code_id
+  CODE_ID=$(wasmd query wasm list-code --node $NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  # fetch address of the smart contract using the code_id
+  ADDR=$(wasmd query wasm list-contract-by-code $CODE_ID --node $NODE --output json | jq -r '.contracts[-1]')
+
+  EXEC_MSG="{\"abort\": {}}" 
+
+  while :
+  do
+    set -x
+    wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json $FLAG --from user $KEYRING -y
+    set +x
+    sleep 5
+  done
+ 
+
+  exit 0
+}
+
+
 killall() {
   set -x
   killall rly &> /dev/null | true
@@ -558,6 +613,17 @@ if [ $1 = "q" ]; then
   if [ $2 = "3" ]; then 
     query $CHAIN_3_NODE "ibc-$2" $3 $4
   fi
+fi
+
+if [ $1 = "cron_abort" ]; then 
+  if [ -z "$2" ]; then
+    echo "Please specify target blockchain: "
+    echo "Usage: ./run cron_abort [target_node]"
+    echo "Example: ./run cron_abort 0"
+    exit 1
+  fi
+
+  cron_abort $CHAIN_0_NODE $2
 fi
 
 echo "Unknown command: $1 "

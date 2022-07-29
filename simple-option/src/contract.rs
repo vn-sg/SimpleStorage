@@ -100,7 +100,7 @@ pub fn handle_execute_abort(
             let mut queue: Vec<Vec<Msg>> = vec!(vec![abort_packet.clone()]; state.n.try_into().unwrap());
 
             receive_queue(deps.storage, 
-                get_timeout(&env), None, 
+                get_timeout(&env), Some("ABORT_UNUSED_CHANNEL".to_string()), 
                 vec![abort_packet.clone()], &mut queue)?;
 
             // let state = STATE.load(deps.storage)?;

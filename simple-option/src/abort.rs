@@ -102,14 +102,15 @@ mod tests {
     #[test]
     fn test_abort() {
         let mut deps = mock_dependencies();
-        let mut _env = mock_env();
+        let mut env = mock_env();
         let mut _info = mock_info(&"test".to_string(), 
         &coins(2, "token"));
 
         let storage = deps.as_mut().storage;
+        let mut queue: Vec<Vec<Msg>> = vec!(vec![]; 4);
 
         //init..
-        let mut mock_state = State::new(0, "test_abort".to_string());
+        let mut mock_state = State::new(0, "test_abort".to_string(), env.block.time);
         mock_state.n = 4;
         STATE.save(storage, &mock_state);
         HIGHEST_ABORT.update(storage, 0, |_| -> StdResult<_> {Ok(-1)});
@@ -120,7 +121,7 @@ mod tests {
         assert_eq!(mock_state.view, 0);
 
 
-        let result = handle_abort(storage, 0, 1);
+        let result = handle_abort(storage, & mut queue, 0, 1, env.block.time.into());
         match result {
             Ok(_) => (),
             Err(msg) => {
@@ -139,7 +140,7 @@ mod tests {
         assert_eq!(abort2, -1);
         assert_eq!(abort3, -1);
 
-        let result = handle_abort(storage, 0, 0);
+        let result = handle_abort(storage, & mut queue ,0, 0, env.block.time.into());
         match result {
             Ok(_) => (),
             Err(msg) => {
@@ -152,7 +153,7 @@ mod tests {
         let mut abort1 = HIGHEST_ABORT.load(storage, 1).unwrap();
         let mut abort2 = HIGHEST_ABORT.load(storage,2).unwrap();
         let mut abort3 = HIGHEST_ABORT.load(storage,3).unwrap();
-        assert_eq!(state.view, 0);
+        assert_eq!(state.view, 1);
         assert_eq!(abort0, -1);
         assert_eq!(abort1, 0);
         assert_eq!(abort2, -1);

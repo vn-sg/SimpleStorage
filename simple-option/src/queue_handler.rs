@@ -11,7 +11,8 @@ use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage,
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, LOCK, DONE, 
-    TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3
+    TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
+    DEBUG
 };
 use crate::abort::{handle_abort};
 
@@ -416,10 +417,12 @@ pub fn receive_queue(
             }, 
             Msg::Abort { view, chain_id } => 
             {
+                DEBUG.save(store, 200+chain_id, &"RECEIVED_ABORT".to_string());
                 handle_abort(store, queue, view, chain_id, timeout.clone())
             },
             Msg::SelfAbort { view, chain_id } => 
             {
+                DEBUG.save(store, 100+chain_id, &"RECEIVED_SELF_ABORT".to_string());
                 let abort_packet = Msg::Abort { view: state.view, chain_id: state.chain_id};
                 send_all_party(store, queue, abort_packet, timeout.clone())
             }
@@ -444,7 +447,6 @@ pub fn receive_queue(
                 state.current_tx_id += 1;
                 STATE.save(store, &state)?;
                 if chain_id != state.chain_id as usize {
-                    
                     // When chain wish to send some msgs to dest chain
                     if msg_queue.len() > 0 {
                         let channel_id = CHANNELS.load(store, chain_id.try_into().unwrap())?;
