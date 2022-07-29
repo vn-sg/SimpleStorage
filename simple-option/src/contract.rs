@@ -92,12 +92,16 @@ pub fn handle_execute_abort(
         .add_attribute("action", "execute")
         .add_attribute("msg_type", "abort");
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
-    match &env.block.time.cmp(&end_time) {
+    match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
-            handle_abort(deps.storage, state.view, state.chain_id)?;
-            Ok(response)
+            match handle_abort(deps.storage, state.view, state.chain_id) {
+                Ok(_) => Ok(response),
+                Err(err) => Err(ContractError::CustomError {val: err.to_string()}),
+            }
         },
         _ => {
+            // handle_abort(deps.storage, state.view, state.chain_id);
+            // Ok(response)
             Err(ContractError::CustomError { val: "Invalid Abort timetsamp hasn't passed yet".to_string() })
         }
     } 
