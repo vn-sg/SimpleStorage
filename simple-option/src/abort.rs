@@ -47,7 +47,7 @@ pub fn handle_abort(storage: &mut dyn Storage, view: u32, sender_chain_id: u32) 
             }
         }
 
-        let w = vector_values[(NUMBER_OF_NODES-F-1) as usize];
+        let w = vector_values[(state.n-F-1) as usize];
         if (w+1) as u32 >= state.view {
             state.view = (w + 1) as u32;
             STATE.save(storage, &state)?;
