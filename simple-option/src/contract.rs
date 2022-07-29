@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
 use crate::abort::handle_abort;
-use crate::utils::{get_timeout, init_receice_map};
+use crate::utils::{get_timeout, init_receive_map};
 use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -20,7 +20,7 @@ use crate::msg::{
     ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, EchoQueryResponse, AbortResponse,
 };
 use crate::state::{
-    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK,
+    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, HIGHEST_ABORT,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -69,7 +69,7 @@ pub fn handle_execute_input(
     */
 
     // Initialization
-    init_receice_map(deps.storage)?;
+    init_receive_map(deps.storage)?;
     // Re-init
     let mut state = STATE.load(deps.storage)?;
     state.re_init(input, env.block.time.clone());
@@ -88,14 +88,15 @@ pub fn handle_execute_abort(
     env: Env
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    let response = Response::new()
-        .add_attribute("action", "execute")
-        .add_attribute("msg_type", "abort");
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
             match handle_abort(deps.storage, state.view, state.chain_id) {
-                Ok(_) => Ok(response),
+                Ok(_) => {
+                    // Trigger view change reset some values..
+                    // HIGHEST_ABORT
+                    view_change(deps, get_timeout(&env))
+                }
                 Err(err) => Err(ContractError::CustomError {val: err.to_string()}),
             }
         },

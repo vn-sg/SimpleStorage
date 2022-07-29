@@ -17,7 +17,6 @@ pub struct State {
     pub channel_ids: Vec<String>,
     pub current_tx_id: u32,
     pub view: u32,
-    pub cur_view: u32,
     pub primary: u32,
     pub key1: u32,
     pub key2: u32,
@@ -52,7 +51,6 @@ impl State {
             channel_ids: Vec::new(),
             current_tx_id: 0,
             view: 0,
-            cur_view: 0,
             primary: 1,
             key1: 0,
             key2: 0,
@@ -80,7 +78,6 @@ impl State {
         self.sent = HashSet::new();
         self.done = None;
         self.view = 0;
-        self.cur_view = 0;
         self.key1 = 0;
         self.key2 = 0;
         self.key3 = 0;
@@ -113,6 +110,42 @@ impl State {
     }
 }
 
+
+pub const STATE: Item<State> = Item::new("state");
+pub const CHANNELS: Map<u32, String> = Map::new("channels");
+
+pub const HIGHEST_REQ: Map<u32, u32> = Map::new("highest_req");
+pub const HIGHEST_ABORT: Map<u32, i32> = Map::new("highest_abort");
+
+pub const SEND_ALL_UPON: Map<u32, Vec<Msg>> = Map::new("send_all_upon");
+
+// FOR DEDUPING MESSAGES <Channel_Id, has_received_the_message_before>
+pub const RECEIVED: Map<String, HashSet<u32>> = Map::new("received");
+// pub const RECEIVED_SUGGEST: Map<String, HashSet<u32>> = Map::new("received_suggest");
+// pub const RECEIVED_PROOF: Map<String, HashSet<u32>> = Map::new("received_proof");
+pub const RECEIVED_ECHO: Map<String, HashSet<u32>> = Map::new("received_echo");
+pub const RECEIVED_KEY1: Map<String, HashSet<u32>> = Map::new("received_key1");
+pub const RECEIVED_KEY2: Map<String, HashSet<u32>> = Map::new("received_key2");
+pub const RECEIVED_KEY3: Map<String, HashSet<u32>> = Map::new("received_key3");
+pub const RECEIVED_LOCK: Map<String, HashSet<u32>> = Map::new("received_lock");
+pub const LOCK: Map<String, u32> = Map::new("lock");
+pub const DONE: Map<String, u32> = Map::new("done");
+
+
+// TESTING..
+pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
+pub const TEST_QUEUE: Map<u32, (u32, Vec<Msg>)> = Map::new("test_queue");
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Test {
+    pub src_port: String,
+    pub src_chan_id: String,
+    pub dest_port: String,
+    pub dest_chan_id: String,
+}
+
+
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct State {
 //     pub role: String,
@@ -142,53 +175,3 @@ impl State {
 //     pub is_first_req_ack: bool,
 //     pub sent_suggest: bool
 // }
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Tx {
-    pub msg: ExecuteMsg,
-    pub no_of_votes: u32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Test {
-    pub src_port: String,
-    pub src_chan_id: String,
-    pub dest_port: String,
-    pub dest_chan_id: String,
-}
-
-pub const STATE: Item<State> = Item::new("state");
-
-// pub const VARS: Map<&str, String> = Map::new("vars");
-pub const TXS: Map<u32, Tx> = Map::new("txs");
-pub const CHANNELS: Map<u32, String> = Map::new("channels");
-
-pub const HIGHEST_REQ: Map<u32, u32> = Map::new("highest_req");
-pub const HIGHEST_ABORT: Map<u32, i32> = Map::new("highest_abort");
-
-pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
-pub const TEST_QUEUE: Map<u32, (u32, Vec<Msg>)> = Map::new("test_queue");
-pub const UPON_QUEUE: Map<String, Vec<PacketMsg>> = Map::new("upon_queue");
-pub const SEND_ALL_UPON: Map<u32, Vec<Msg>> = Map::new("send_all_upon");
-
-// Message types to indicate the amount of which received on the same val
-// MessageType: Map<VAL, COUNT>
-pub const ECHO: Map<String, u32> = Map::new("echo");
-pub const KEY1: Map<String, u32> = Map::new("key1");
-pub const KEY2: Map<String, u32> = Map::new("key2");
-pub const KEY3: Map<String, u32> = Map::new("key3");
-pub const LOCK: Map<String, u32> = Map::new("lock");
-pub const DONE: Map<String, u32> = Map::new("done");
-
-// Map<MsgType, <View, <Channel_Id, Sent>>
-pub const DEDUPE_PACKET: Map<String, Map<u32, Map<u32, bool>>> = Map::new("dedupe_packet");
-
-
-// FOR DEDUPING MESSAGES <Channel_Id, has_received_the_message_before>
-pub const RECEIVED: Map<String, HashSet<u32>> = Map::new("received");
-// pub const RECEIVED_SUGGEST: Map<String, HashSet<u32>> = Map::new("received_suggest");
-// pub const RECEIVED_PROOF: Map<String, HashSet<u32>> = Map::new("received_proof");
-pub const RECEIVED_ECHO: Map<String, HashSet<u32>> = Map::new("received_echo");
-pub const RECEIVED_KEY1: Map<String, HashSet<u32>> = Map::new("received_key1");
-pub const RECEIVED_KEY2: Map<String, HashSet<u32>> = Map::new("received_key2");
-pub const RECEIVED_KEY3: Map<String, HashSet<u32>> = Map::new("received_key3");
-pub const RECEIVED_LOCK: Map<String, HashSet<u32>> = Map::new("received_lock");

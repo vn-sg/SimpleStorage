@@ -53,7 +53,7 @@ pub fn get_chain_id(store: &mut dyn Storage, channel_id_to_get: String) -> u32 {
     }).unwrap()
 }
 
-pub fn init_receice_map(store: &mut dyn Storage) -> StdResult<()> {
+pub fn init_receive_map(store: &mut dyn Storage) -> StdResult<()> {
     let state = STATE.load(store)?;
     // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
     let all_chain_ids: StdResult<Vec<_>> = CHANNELS
