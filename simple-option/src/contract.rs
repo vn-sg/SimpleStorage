@@ -137,13 +137,14 @@ pub fn handle_execute_abort(
     let response = Response::new()
         .add_attribute("action", "execute")
         .add_attribute("msg_type", "abort");
-    match state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS).cmp(&env.block.time) {
+    let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
+    match &env.block.time.cmp(&end_time) {
         Ordering::Greater => {
             handle_abort(deps.storage, state.view, state.chain_id);
             Ok(response)
         },
         _ => {
-            Err(ContractError::CustomError { val: "Invalid Abort".to_string() })
+            Err(ContractError::CustomError { val: "Invalid Abort timetsamp hasn't passed yet".to_string() })
         }
     } 
 }
@@ -202,7 +203,7 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
@@ -217,7 +218,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetKey3 {} => to_binary(&query_key3(deps)?),
         QueryMsg::GetLock {} => to_binary(&query_lock(deps)?),
         QueryMsg::GetDone {} => to_binary(&query_done(deps)?),
-        QueryMsg::GetAbortInfo {} => to_binary(&query_abort_info(deps)?),
+        QueryMsg::GetAbortInfo {} => to_binary(&query_abort_info(deps, env)?),
      }
 }
 
@@ -331,12 +332,12 @@ fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
     })
 }
 
-fn query_abort_info(deps: Deps) -> StdResult<AbortResponse> {
+fn query_abort_info(deps: Deps, env: Env) -> StdResult<AbortResponse> {
     let state = STATE.load(deps.storage)?;
     // let channels = channels?;
     
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
-    let timeout = match end_time.cmp(&state.start_time) {
+    let timeout = match env.block.time.cmp(&end_time) {
         Ordering::Greater => true,
         _ => false,
     };
@@ -349,6 +350,7 @@ fn query_abort_info(deps: Deps) -> StdResult<AbortResponse> {
     Ok(AbortResponse {
         start_time: state.start_time,
         end_time: state.start_time.plus_seconds(60),
+        current_time: env.block.time,
         is_timeout: timeout,
         done: is_input_finished,
         should_abort: (timeout && is_input_finished),
