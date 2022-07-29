@@ -1,10 +1,6 @@
-<<<<<<< HEAD
 use std::collections::HashSet;
 
-use cosmwasm_std::IbcMsg;
-=======
 use cosmwasm_std::{IbcMsg, Timestamp};
->>>>>>> 2bec0fe0682f0ea561343d833324aacf6e7f36f1
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -38,21 +34,13 @@ pub struct State {
     pub suggestions: Vec<(u32, String)>,
     pub key2_proofs: Vec<(u32, String, i32)>,
     pub proofs: Vec<(u32, String, i32)>,
-<<<<<<< HEAD
     pub received_propose: bool,
     // pub is_first_req_ack: bool,
     // pub sent_suggest: bool,
     // pub sent_done: bool,
     pub sent: HashSet<String>,
-    pub done: Option<String>
-=======
-    pub is_first_propose: bool,
-    pub is_first_req_ack: bool,
-    pub sent_suggest: bool,
-    pub sent_done: bool,
     pub done: Option<String>,
     pub start_time: Timestamp,
->>>>>>> 2bec0fe0682f0ea561343d833324aacf6e7f36f1
 }
 
 impl State {
@@ -86,11 +74,7 @@ impl State {
             // sent_done: false,
             sent: HashSet::new(),
             done: None,
-<<<<<<< HEAD
-=======
-            sent_done: false,
             start_time: start_time,
->>>>>>> 2bec0fe0682f0ea561343d833324aacf6e7f36f1
         }
     }
 }

@@ -10,11 +10,7 @@ use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage,
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, RECEIVED_SUGGEST, ECHO, KEY1, KEY2, KEY3, LOCK, DONE, 
-<<<<<<< HEAD
     TEST_QUEUE, RECEIVED_PROOF, TEST
-=======
-    TEST_QUEUE, TEST, HIGHEST_ABORT, State, DEDUPE_PACKET, RECEIVED_ECHO, RECEIVED_KEY_1, RECEIVED_KEY_2, RECEIVED_PROOF
->>>>>>> 2bec0fe0682f0ea561343d833324aacf6e7f36f1
 };
 use crate::abort::{handle_abort};
 
@@ -299,10 +295,9 @@ pub fn receive_queue(
 
                 let key1_packet = Msg::Key1 { val: val.clone(), view };
                 let mut state = STATE.load(store)?;
-                let received_key_1 = RECEIVED_KEY_1.load(store, chain_id)?;
 
                 // ignore messages from other views, other than abort, done and request messages
-                if view != state.view && received_key_1 {
+                if view != state.view {
                 } else { 
                     message_transfer_hop(store, val.clone(), view, queue, ECHO, key1_packet.clone(), timeout.clone())?;
 
