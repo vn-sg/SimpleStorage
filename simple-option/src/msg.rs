@@ -1,3 +1,4 @@
+use cosmwasm_std::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Input { value: String },
     ForceAbort {},
+    Abort {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -32,7 +34,8 @@ pub enum QueryMsg {
     GetKey2 { },
     GetKey3 { },
     GetLock { },
-    GetDone { }
+    GetDone { },
+    GetAbortInfo { },
 }
 
 // We define a custom struct for each query response
@@ -103,4 +106,13 @@ pub struct LockQueryResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DoneQueryResponse { 
     pub done: Vec<(String, u32)>
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AbortResponse { 
+    pub start_time: Timestamp,
+    pub end_time: Timestamp,
+    pub is_timeout: bool,
+    pub done: bool,
+    pub should_abort: bool,
 }

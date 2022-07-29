@@ -204,7 +204,7 @@ pub fn ibc_channel_connect(
     let msg = IbcMsg::SendPacket {
         channel_id: channel_id.clone(),
         data: to_binary(&packet)?,
-        timeout: get_timeout(env)
+        timeout: get_timeout(&env)
     };
 
     Ok(IbcBasicResponse::new()
@@ -270,7 +270,7 @@ pub fn ibc_packet_receive(
             {
                 let state = STATE.load(deps.storage)?;
                 let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-                receive_queue(deps.storage, get_timeout(env), Some(dest_channel_id), q, &mut queue)
+                receive_queue(deps.storage, get_timeout(&env), Some(dest_channel_id), q, &mut queue)
             },
             // PacketMsg::Propose {
             //     chain_id,
