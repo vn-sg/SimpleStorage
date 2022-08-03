@@ -5,6 +5,7 @@ use cosmwasm_std::{
 
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::fmt;
 
 use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
     F, get_chain_id};
@@ -438,9 +439,11 @@ pub fn receive_queue(
             // Generate msg queue to send
             let mut msgs = Vec::new();
             // let timeout = get_timeout(env);
+            DEBUG.save(store, 300, &"LOCAL_CHANNEL_ID".to_string());
 
             //// TESTING /////
             let mut state = STATE.load(store)?;
+            let mut i = 0;
             for (chain_id, msg_queue) in queue.iter().enumerate() {
                 //// TESTING /////
                 TEST_QUEUE.save(store, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
@@ -450,6 +453,11 @@ pub fn receive_queue(
                     // When chain wish to send some msgs to dest chain
                     if msg_queue.len() > 0 {
                         let channel_id = CHANNELS.load(store, chain_id.try_into().unwrap())?;
+                        i = i+1;
+                        let first_msg_name = msg_queue[0].name();
+                        let debug_str = format!("{} {} FIRST MESSAGE LEN {} TO CHAIN_ID: {}" , 
+                                                        "SEND_PACKET QUEUE SIZE", msg_queue.len(), first_msg_name, chain_id);   
+                        DEBUG.save(store, 400+i, &debug_str);
                         let msg = IbcMsg::SendPacket {
                             channel_id,
                             data: to_binary(&PacketMsg::MsgQueue ( msg_queue.to_vec() ) )?,

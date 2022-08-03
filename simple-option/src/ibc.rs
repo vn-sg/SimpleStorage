@@ -13,7 +13,7 @@ use crate::ibc_msg::{
 };
 
 use crate::state::{
-    CHANNELS, STATE,
+    CHANNELS, STATE, HIGHEST_ABORT,
 };
 use crate::utils::{get_timeout, F};
 use crate::queue_handler::{receive_queue};
@@ -184,6 +184,7 @@ pub fn ibc_channel_connect(
     state.n += 1;
     STATE.save(deps.storage, &state)?;
     // let dst_port =  &channel.counterparty_endpoint.port_id;
+
 
     // let action = | mut state: State | -> StdResult<_> {
     //     state.channel_ids.insert(dst_port.to_string(), channel_id.to_string());
@@ -725,7 +726,7 @@ fn receive_who_am_i(
     // let action = |_| -> StdResult<u32> { Ok(0) };
     // HIGHEST_REQ.update(deps.storage, chain_id, action)?;
     // initialize the highest_request of that chain
-    // HIGHEST_ABORT.save(deps.storage, chain_id, &0)?;
+    HIGHEST_ABORT.save(deps.storage, chain_id, &-1)?;
 
     let response = WhoAmIResponse {};
     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;

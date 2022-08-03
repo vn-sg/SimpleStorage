@@ -35,7 +35,7 @@ pub const REQUEST_REPLY_ID: u64 = 100;
 pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
-pub const VIEW_TIMEOUT_SECONDS: u64 = 10;
+pub const VIEW_TIMEOUT_SECONDS: u64 = 1;
 
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -57,6 +57,50 @@ pub fn instantiate(
         .add_attribute("method", "instantiate")
         .add_attribute("owner", info.sender))
 }
+
+// execute entry_point is used for beginning new instance of IT-HS consensus
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
+        ExecuteMsg::PreInput { value } => handle_execute_preinput(deps, env, info, value),
+        ExecuteMsg::ForceAbort {} => {
+            todo!()
+        },
+        ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
+    }
+
+    // let channel_ids = state.channel_ids.clone();
+    // let channel_ids = state.channel_ids.values().cloned().collect();
+    // let channel_ids: StdResult<Vec<_>> = CHANNELS
+    //         .range(deps.storage, None, None, Order::Ascending)
+    //         .collect();
+
+    // let mut state = STATE.load(deps.storage)?;
+    // let tx_id = state.current_tx_id.clone();
+
+    // // Initialize tx info and store in local state(TXS)
+    // TXS.save(
+    //     deps.storage,
+    //     tx_id.clone(),
+    //     &Tx {
+    //         msg: msg.clone(),
+    //         no_of_votes: 1,
+    //     },
+    // )?;
+    // // Update the tx_id to assign and save current state
+    // state.current_tx_id += 1;
+
+    // STATE.save(deps.storage, &state)?;
+
+    // broadcast_response(timeout.clone(), channel_ids, packet, "broadcast_propose".to_string())
+}
+
 
 pub fn handle_execute_input(
     deps: DepsMut,
@@ -87,6 +131,26 @@ pub fn handle_execute_input(
     // broadcast message
 }
 
+pub fn handle_execute_preinput(
+    deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    input: String,
+) -> Result<Response, ContractError> {
+    // Initialization
+    init_receive_map(deps.storage)?;
+
+    // Re-init
+    let mut state = STATE.load(deps.storage)?;
+    state.re_init(input, env.block.time.clone());
+    // Store values to state
+    STATE.save(deps.storage, &state)?;
+
+    Ok(Response::new()
+    .add_attribute("action", "execute")
+    .add_attribute("msg_type", "pre_input"))        
+}
+
 pub fn handle_execute_abort(
     deps: DepsMut,
     env: Env
@@ -96,12 +160,14 @@ pub fn handle_execute_abort(
     match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
 
-            let abort_packet = Msg::SelfAbort { view: state.view, chain_id: state.chain_id};
+            let abort_packet = Msg::Abort { view: state.view, chain_id: state.chain_id};
             let mut queue: Vec<Vec<Msg>> = vec!(vec![abort_packet.clone()]; state.n.try_into().unwrap());
 
-            receive_queue(deps.storage, 
+            let response = receive_queue(deps.storage, 
                 get_timeout(&env), Some("ABORT_UNUSED_CHANNEL".to_string()), 
                 vec![abort_packet.clone()], &mut queue)?;
+                
+            let subMsgs = response.messages;
 
             // let state = STATE.load(deps.storage)?;
             // if previous_view != state.view {
@@ -118,6 +184,7 @@ pub fn handle_execute_abort(
             // }
             Ok(Response::new()
                 .add_attribute("action", "execute")
+                .add_submessages(subMsgs)
                 .add_attribute("msg_type", "abort"))        
 
         },
@@ -127,60 +194,6 @@ pub fn handle_execute_abort(
             Err(ContractError::CustomError { val: "Invalid Abort timetsamp hasn't passed yet".to_string() })
         }
     } 
-}
-
-// execute entry_point is used for beginning new instance of IT-HS consensus
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
-    match msg {
-        ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
-        ExecuteMsg::ForceAbort {} => {
-            todo!()
-            //TODO add abort timestamp validation and start new view
-            // let state = STATE.load(deps.storage)?;
-            // let result = handle_abort(deps.storage, state.view, state.chain_id);
-            // let response = Response::new()
-            //     .add_attribute("action", "execute")
-            //     .add_attribute("msg_type", "get");
-            // match result {
-            //     Ok(_) => Ok(response),
-            //     Err(error_msg) => Err(ContractError::CustomError {
-            //         val: error_msg.to_string(),
-            //     }),
-            // }
-        },
-        ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
-    }
-
-    // let channel_ids = state.channel_ids.clone();
-    // let channel_ids = state.channel_ids.values().cloned().collect();
-    // let channel_ids: StdResult<Vec<_>> = CHANNELS
-    //         .range(deps.storage, None, None, Order::Ascending)
-    //         .collect();
-
-    // let mut state = STATE.load(deps.storage)?;
-    // let tx_id = state.current_tx_id.clone();
-
-    // // Initialize tx info and store in local state(TXS)
-    // TXS.save(
-    //     deps.storage,
-    //     tx_id.clone(),
-    //     &Tx {
-    //         msg: msg.clone(),
-    //         no_of_votes: 1,
-    //     },
-    // )?;
-    // // Update the tx_id to assign and save current state
-    // state.current_tx_id += 1;
-
-    // STATE.save(deps.storage, &state)?;
-
-    // broadcast_response(timeout.clone(), channel_ids, packet, "broadcast_propose".to_string())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

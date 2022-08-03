@@ -2,9 +2,10 @@ use cosmwasm_std::{
     StdResult, Order, StdError, Storage, IbcTimeout
 };
 
+use crate::ContractError;
 use crate::utils::{F, NUMBER_OF_NODES, get_id_channel_pair_from_storage, get_timeout};
 use crate::state::{
-    STATE, HIGHEST_ABORT
+    STATE, HIGHEST_ABORT, DEBUG
 };
 
 
@@ -48,6 +49,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
             if u > -1 {
                 let abort_packet = Msg::Abort { view: u as u32, chain_id: state.chain_id};
                 let channel_ids = get_id_channel_pair_from_storage(storage)?;
+                DEBUG.save(storage, 1200, &"CLONE_ABORT_PACKET".to_string());
                 for (chain_id, _channel_id) in &channel_ids {
                     queue[*chain_id as usize].push(abort_packet.clone());
                 }
@@ -68,7 +70,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
                 let temp = vecs.iter().map(|(_key, value)| value.clone()).collect::<Vec<i32>>();
                 temp
             }
-            Err(_) => return Err(StdError::GenericErr { msg: "Error nth".to_string()}),
+            Err(msg) => return Err(StdError::GenericErr { msg: msg.to_string()} ),
         };
         vector_values.sort();
         
@@ -78,8 +80,15 @@ pub fn handle_abort(storage: &mut dyn Storage,
             state.view = (w + 1) as u32;
             STATE.save(storage, &state)?;
             if previous_view != state.view {
+                DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string());
                 reset_view_specific_maps(storage)?;
-                view_change(storage, timeout);
+                let result = view_change(storage, timeout);
+                match result {
+                    Ok(_) => {
+
+                    }
+                    Err(msg) => return Err(StdError::GenericErr { msg: msg.to_string()} ),
+                }
             }
         }
     }

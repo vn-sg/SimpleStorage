@@ -16,6 +16,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Input { value: String },
+    PreInput { value: String},
     ForceAbort {},
     Abort {},
 }
