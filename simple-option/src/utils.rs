@@ -9,28 +9,10 @@ use crate::ibc_msg::{
 };
 
 
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Map};
 use crate::state::{
     CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK,
 };
-
-// macro_rules! enum_to_str {
-//     (enum $name:ident {
-//         $($variant:ident = $val:expr),*,
-//     }) => {
-//         enum $name {
-//             $($variant = $val),*
-//         }
-
-//         impl $name {
-//             fn name(&self) -> &'static str {
-//                 match self {
-//                     $($name::$variant => stringify!($variant)),*
-//                 }
-//             }
-//         }
-//     };
-// }
 
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;

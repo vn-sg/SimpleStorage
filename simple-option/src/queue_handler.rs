@@ -5,7 +5,6 @@ use cosmwasm_std::{
 
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::fmt;
 
 use crate::utils::{get_id_channel_pair, get_id_channel_pair_from_storage, 
     F, get_chain_id};
@@ -13,7 +12,7 @@ use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, LOCK, DONE, 
     TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
-    DEBUG, IBC_MSG_SEND_DEBUG
+    DEBUG
 };
 use crate::abort::{handle_abort};
 
