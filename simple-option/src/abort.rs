@@ -112,7 +112,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
 
                     }
                     Err(msg) => {
-                        println!("Error when doing view_change in handle_abort ");
+                        //println!("Error when doing view_change in handle_abort ");
                         return Err(StdError::GenericErr { msg: msg.to_string()} )
                         // return Ok(())
                     }
