@@ -74,6 +74,7 @@ pub fn init_receive_map(store: &mut dyn Storage) -> StdResult<()> {
     }
     
     reset_view_specific_maps(store)?;
+    reset_aborts(store)?;
     Ok(())
 }
 
@@ -94,11 +95,15 @@ pub fn reset_view_specific_maps(store: &mut dyn Storage) -> StdResult<()> {
     delete_map(store, RECEIVED_KEY3)?;
     delete_map(store, RECEIVED_LOCK)?;
         
+    Ok(())
+}
+
+fn reset_aborts(store: &mut dyn Storage) -> StdResult<()> {
     let state = STATE.load(store)?;
     // Initialize highest_request (all to the max of u32 to differentiate between the initial state)
     let all_chain_ids: StdResult<Vec<_>> = CHANNELS
-        .keys(store, None, None, Order::Ascending)
-        .collect();
+    .keys(store, None, None, Order::Ascending)
+    .collect();
     let all_chain_ids = all_chain_ids?;
     HIGHEST_ABORT.save(store, state.chain_id, &-1)?;
     for chain_id in all_chain_ids {

@@ -24,7 +24,14 @@ pub fn handle_abort(storage: &mut dyn Storage,
                     sender_chain_id: u32, timeout: IbcTimeout) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     
-    if ((HIGHEST_ABORT.load(storage, sender_chain_id)? + 1) as u32)< (view+1) {
+    let mut loadedVal = 0;
+    let option = HIGHEST_ABORT.load(storage, sender_chain_id);
+    match option {
+        Ok(val) => loadedVal = val,
+        Err(_) => return Err(StdError::GenericErr { msg: "handle_abort cannot find loadedVal".to_string()} ), 
+    }
+
+    if ((loadedVal + 1) as u32)< (view+1) {
         HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
             match option {
                 Some(_val) => Ok(view as i32),
@@ -43,9 +50,16 @@ pub fn handle_abort(storage: &mut dyn Storage,
             Err(_) => return Err(StdError::GenericErr { msg: "Error nth".to_string()}),
         };
         vector_values.sort();
+
         
         let u = vector_values[ (F+1-1) as usize]; 
-        if u > HIGHEST_ABORT.load(storage, state.chain_id)? {
+        let mut loadedVal = 0;
+        match HIGHEST_ABORT.load(storage, sender_chain_id) {
+            Ok(val) => loadedVal = val,
+            Err(_) => return Err(StdError::GenericErr { msg: "handle_abort cannot find loadedVal part 2".to_string()} ), 
+        }
+
+        if u > loadedVal {
             if u > -1 {
                 let abort_packet = Msg::Abort { view: u as u32, chain_id: state.chain_id};
                 let channel_ids = get_id_channel_pair_from_storage(storage)?;
@@ -72,22 +86,36 @@ pub fn handle_abort(storage: &mut dyn Storage,
             }
             Err(msg) => return Err(StdError::GenericErr { msg: msg.to_string()} ),
         };
-        vector_values.sort();
-        
-        let w = vector_values[(state.n-F-1) as usize];
+        vector_values.sort();        
+
+        let idx = state.n-F-1;
+        // println!("state.n is {} F is {} vector_values size is {} idx is {}", state.n, F, vector_values.len(), idx);
+        let w = vector_values[idx as usize];
         if (w+1) as u32 >= state.view {
             let previous_view = state.view;
             state.view = (w + 1) as u32;
             STATE.save(storage, &state)?;
             if previous_view != state.view {
                 DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string());
-                reset_view_specific_maps(storage)?;
+                match reset_view_specific_maps(storage) {
+                    Ok(_) => {
+
+                    }
+                    Err(_) => {
+                        // println!("Error when reseting view maps in handle_abort");
+                        return Err(StdError::GenericErr { msg: "Error when reseting view maps in handle_abort".to_string()} )
+                    }
+                }         
                 let result = view_change(storage, timeout);
                 match result {
                     Ok(_) => {
 
                     }
-                    Err(msg) => return Err(StdError::GenericErr { msg: msg.to_string()} ),
+                    Err(msg) => {
+                        println!("Error when doing view_change in handle_abort ");
+                        return Err(StdError::GenericErr { msg: msg.to_string()} )
+                        // return Ok(())
+                    }
                 }
             }
         }
@@ -153,20 +181,25 @@ mod tests {
         match result {
             Ok(_) => (),
             Err(msg) => {
-                let cause = msg.source().unwrap();
-                panic!(msg.to_string())
+                let cause = msg.source();
+                match cause {
+                    Some(error_cause) => panic!(error_cause.to_string()),
+                    None => panic!("None when returning handle_abort"),
+                }
             }
         }
+        
         let mut state = STATE.load(storage).unwrap();
         let mut abort0 = HIGHEST_ABORT.load(storage, 0).unwrap();
         let mut abort1 = HIGHEST_ABORT.load(storage, 1).unwrap();
         let mut abort2 = HIGHEST_ABORT.load(storage,2).unwrap();
         let mut abort3 = HIGHEST_ABORT.load(storage,3).unwrap();
         assert_eq!(state.view, 1);
-        assert_eq!(abort0, -1);
+        assert_eq!(abort0, 0);
         assert_eq!(abort1, 0);
         assert_eq!(abort2, -1);
         assert_eq!(abort3, -1);
+        
     }
 
 
