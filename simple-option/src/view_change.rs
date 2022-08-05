@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use crate::ibc_msg::{PacketMsg, Msg};
 use crate::queue_handler::{receive_queue, send_all_party, send_all_upon_join_queue};
 use crate::state::{
-    HIGHEST_REQ, STATE, TEST_QUEUE, CHANNELS
+    HIGHEST_REQ, STATE, TEST_QUEUE, CHANNELS, IBC_MSG_SEND_DEBUG
 };
 
 use crate::ContractError;

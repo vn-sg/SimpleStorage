@@ -13,7 +13,7 @@ use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, LOCK, DONE, 
     TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
-    DEBUG
+    DEBUG, IBC_MSG_SEND_DEBUG
 };
 use crate::abort::{handle_abort};
 

@@ -230,3 +230,180 @@ fn _handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> Std
     Ok(Response::new())
     // Add consecutive submessages
 }
+
+
+
+/*
+fn _acknowledge_request(
+    deps: DepsMut,
+    env: Env,
+) -> StdResult<IbcBasicResponse> {
+    
+    // Upon sucessfully called the broadcast of Request Messages
+    // Load the state 
+    let mut state = STATE.load(deps.storage)?;
+    if !state.is_first_req_ack {
+        return Ok(IbcBasicResponse::new());
+    }
+    state.is_first_req_ack = false;
+    STATE.save(deps.storage, &state)?;
+    if state.chain_id != state.primary {
+        // Upon highest_request[primary] = view
+        let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
+        if prim_highest_req == state.view {
+            // Contruct Suggest message to delivery to primary
+            let packet = PacketMsg::Suggest {
+                chain_id: state.chain_id,
+                view: state.view,
+                key2: state.key2,
+                key2_val: state.key2_val.clone(),
+                prev_key2: state.prev_key2,
+                key3: state.key3,
+                key3_val: state.key3_val.clone(),
+            };
+            // let timeout: IbcTimeout = env.block.time.plus_seconds(PACKET_LIFETIME).into();
+            let channel_id = CHANNELS.load(deps.storage, state.primary)?;
+            let timeout = get_timeout(env);
+            let msg = IbcMsg::SendPacket {
+                channel_id,
+                data: to_binary(&packet)?,
+                timeout: timeout.clone(),
+            };
+            let submsg = SubMsg::reply_on_success(msg, SUGGEST_REPLY_ID);
+            // let submsg = msg;
+            // construct Response and put Suggest message in the query on the fly
+            return Ok(IbcBasicResponse::new()
+                .add_submessage(submsg)
+                .add_attribute("action", "send_suggest2primary".to_string()))
+        }
+    }
+    Ok(IbcBasicResponse::new())
+}
+
+fn acknowledge_propose(
+    _deps: DepsMut,
+    env: Env,
+    ack: AcknowledgementMsg<ProposeResponse>,
+) -> StdResult<IbcBasicResponse> {
+    let _timeout: IbcTimeout = get_timeout(env);
+    // retrive tx_id from acknowledge message
+    let _tx_id = match ack {
+        AcknowledgementMsg::Ok(res) => res,
+        AcknowledgementMsg::Err(e) => {
+            return Ok(IbcBasicResponse::new()
+                .add_attribute("action", "acknowledge_propose")
+                .add_attribute("error", e))
+        }
+    };
+    // let action = |tx: Option<Tx>| -> StdResult<Tx> {
+    //     let mut tx = tx.unwrap();
+    //     tx.no_of_votes += 1;
+    //     Ok(tx)
+    // };
+
+    // let tx = TXS.update(deps.storage, tx_id.clone(), action)?;
+
+    // broadcast Commit message
+    // if tx.no_of_votes >= 2 {
+    //     // let state: State = STATE.load(deps.storage)?;
+    //     // let channel_ids = state.channel_ids.clone();
+    //     let channel_ids: StdResult<Vec<_>> = CHANNELS
+    //         .range(deps.storage, None, None, Order::Ascending)
+    //         .collect();
+    //     let channel_ids = channel_ids?;
+    //     let packet = PacketMsg::Commit {
+    //         msg: tx.msg.clone(),
+    //         tx_id: tx_id.clone(),
+    //     };
+
+    //     receive_commit(deps, "self".to_string(), tx.msg.clone(), tx_id.clone())?;
+
+    //     // Broadcast Commit messages
+    //     let mut commit_msgs: Vec<IbcMsg> = Vec::new();
+    //     for (_, channel_id) in channel_ids {
+    //         let msg = IbcMsg::SendPacket {
+    //             channel_id: channel_id.clone(),
+    //             data: to_binary(&packet)?,
+    //             timeout: timeout.clone(),
+    //         };
+    //         commit_msgs.push(msg);
+    //     }
+
+    // let msg0 = IbcMsg::SendPacket {
+    //     channel_id: channel_ids[0].clone(),
+    //     data: to_binary(&packet)?,
+    //     timeout: timeout.clone()
+    // };
+    // let msg1 = IbcMsg::SendPacket {
+    //     channel_id: channel_ids[1].clone(),
+    //     data: to_binary(&packet)?,
+    //     timeout: timeout.clone()
+    // };
+
+    //     Ok(IbcBasicResponse::new()
+    //         // .add_message(msg0)
+    //         // .add_message(msg1)
+    //         .add_messages(commit_msgs)
+    //         .add_attribute("action", "acknowledge_propose_response")
+    //         .add_attribute("commit", "true"))
+    // } else {
+    Ok(IbcBasicResponse::new()
+        .add_attribute("action", "acknowledge_propose_response")
+        .add_attribute("commit", "false"))
+    // }
+}
+*/
+
+
+
+
+// pub fn send_all_upon_join_sub(
+//     deps: &DepsMut,
+//     timeout: IbcTimeout,
+//     mut res: Response,
+//     packet_to_broadcast: PacketMsg,
+//     reply_id: u64
+// ) -> Result<Response, ContractError> {
+//     let channel_ids = get_id_channel_pair(deps.storage)?;
+//     // let mut res = res;
+//     let state = STATE.load(deps.storage)?;
+//     for (chain_id, channel_id) in &channel_ids {
+//         let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+//         if highest_request == state.view {
+//             let msg = IbcMsg::SendPacket {
+//                 channel_id: channel_id.clone(),
+//                 data: to_binary(&packet_to_broadcast)?,
+//                 timeout: timeout.clone(),
+//             };
+//             let submsg = SubMsg::reply_on_success(msg, reply_id);
+//             res = res.add_submessage(submsg);
+//         }
+//     }
+
+//     Ok(res)
+// }
+
+// pub fn send_all_upon_join(
+//     deps: &DepsMut,
+//     timeout: IbcTimeout,
+//     packet_to_broadcast: PacketMsg,
+// ) -> Result<Vec<SubMsg>, ContractError> {
+//     let channel_ids = get_id_channel_pair(deps.storage)?;
+
+//     let mut msgs = Vec::new();
+//     let state = STATE.load(deps.storage)?;
+//     for (chain_id, channel_id) in &channel_ids {
+//         let highest_request = HIGHEST_REQ.load(deps.storage, chain_id.clone())?;
+//         if highest_request == state.view {
+//             let msg = IbcMsg::SendPacket {
+//                 channel_id: channel_id.clone(),
+//                 data: to_binary(&packet_to_broadcast)?,
+//                 timeout: timeout.clone(),
+//             };
+//             let submsg: SubMsg = SubMsg::reply_on_success(msg, PROPOSE_REPLY_ID);
+//             msgs.push(submsg);
+//         }
+//     }
+
+//     Ok(msgs)
+// }
