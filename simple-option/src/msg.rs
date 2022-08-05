@@ -19,6 +19,7 @@ pub enum ExecuteMsg {
     PreInput { value: String},
     ForceAbort {},
     Abort {},
+    Trigger { behavior: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

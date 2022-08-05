@@ -13,18 +13,19 @@ use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
-use crate::queue_handler::{receive_queue};
+use crate::queue_handler::receive_queue;
 use crate::utils::{get_timeout, init_receive_map};
 use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
-    ChannelsResponse, ExecuteMsg, HighestReqResponse, InstantiateMsg, QueryMsg,
-    ReceivedSuggestResponse, SendAllUponResponse, StateResponse, TestQueueResponse, 
-    Key1QueryResponse, Key2QueryResponse, Key3QueryResponse, LockQueryResponse, DoneQueryResponse, 
-    EchoQueryResponse, AbortResponse, HighestAbortResponse,
+    AbortResponse, ChannelsResponse, DoneQueryResponse, EchoQueryResponse, ExecuteMsg,
+    HighestAbortResponse, HighestReqResponse, InstantiateMsg, Key1QueryResponse, Key2QueryResponse,
+    Key3QueryResponse, LockQueryResponse, QueryMsg, ReceivedSuggestResponse, SendAllUponResponse,
+    StateResponse, TestQueueResponse,
 };
 use crate::state::{
-    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, HIGHEST_ABORT, DEBUG
+    State, CHANNELS, DEBUG, DONE, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO,
+    RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -36,7 +37,6 @@ pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
 pub const VIEW_TIMEOUT_SECONDS: u64 = 1;
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -71,10 +71,21 @@ pub fn execute(
         ExecuteMsg::PreInput { value } => handle_execute_preinput(deps, env, info, value),
         ExecuteMsg::ForceAbort {} => {
             todo!()
-        },
+        }
         ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
+        ExecuteMsg::Trigger { behavior } => handle_trigger(deps, env, behavior),
     }
 }
+
+pub fn handle_trigger(
+    deps: DepsMut,
+    env: Env,
+    behavior: String,
+) -> Result<Response, ContractError> {
+
+
+}
+
 
 
 pub fn handle_execute_input(
@@ -122,53 +133,58 @@ pub fn handle_execute_preinput(
     STATE.save(deps.storage, &state)?;
 
     Ok(Response::new()
-    .add_attribute("action", "execute")
-    .add_attribute("msg_type", "pre_input"))        
+        .add_attribute("action", "execute")
+        .add_attribute("msg_type", "pre_input"))
 }
 
-pub fn handle_execute_abort(
-    deps: DepsMut,
-    env: Env
-) -> Result<Response, ContractError> {
+pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
+            let abort_packet = Msg::Abort {
+                view: state.view,
+                chain_id: state.chain_id,
+            };
+            let mut queue: Vec<Vec<Msg>> =
+                vec![vec![abort_packet.clone()]; state.n.try_into().unwrap()];
 
-            let abort_packet = Msg::Abort { view: state.view, chain_id: state.chain_id};
-            let mut queue: Vec<Vec<Msg>> = vec!(vec![abort_packet.clone()]; state.n.try_into().unwrap());
+            let response = receive_queue(
+                deps.storage,
+                get_timeout(&env),
+                Some("ABORT_UNUSED_CHANNEL".to_string()),
+                vec![abort_packet.clone()],
+                &mut queue,
+            )?;
 
-            let response = receive_queue(deps.storage, 
-                get_timeout(&env), Some("ABORT_UNUSED_CHANNEL".to_string()), 
-                vec![abort_packet.clone()], &mut queue)?;
-                
             let subMsgs = response.messages;
 
             // let state = STATE.load(deps.storage)?;
             // if previous_view != state.view {
             //     let t = format!("STATE IS NOT EQUAL PREVIOUS_VIEW = {} STATE.VIEW = {}", previous_view, state.view);
-            //     DEBUG.save(deps.storage, 100, &t)?;                        
+            //     DEBUG.save(deps.storage, 100, &t)?;
             //     reset_view_specific_maps(deps.storage)?;
-            //     view_change(deps, get_timeout(&env))    
+            //     view_change(deps, get_timeout(&env))
             // } else {
             //     let t = format!("STATE IS STILL EQUAL EQUAL PREVIOUS_VIEW = {} STATE.VIEW = {}", previous_view, state.view);
-            //     DEBUG.save(deps.storage, 200, &t)?;                        
+            //     DEBUG.save(deps.storage, 200, &t)?;
             //     Ok(Response::new()
             //         .add_attribute("action", "execute")
-            //         .add_attribute("msg_type", "abort"))        
+            //         .add_attribute("msg_type", "abort"))
             // }
             Ok(Response::new()
                 .add_attribute("action", "execute")
                 .add_submessages(subMsgs)
-                .add_attribute("msg_type", "abort"))        
-
-        },
+                .add_attribute("msg_type", "abort"))
+        }
         _ => {
             // handle_abort(deps.storage, state.view, state.chain_id);
             // Ok(response)
-            Err(ContractError::CustomError { val: "Invalid Abort timetsamp hasn't passed yet".to_string() })
+            Err(ContractError::CustomError {
+                val: "Invalid Abort timetsamp hasn't passed yet".to_string(),
+            })
         }
-    } 
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -188,60 +204,47 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetLock {} => to_binary(&query_lock(deps)?),
         QueryMsg::GetDone {} => to_binary(&query_done(deps)?),
         QueryMsg::GetAbortInfo {} => to_binary(&query_abort_info(deps, env)?),
-        QueryMsg::GetDebug {} =>  to_binary(&query_debug(deps)?),
+        QueryMsg::GetDebug {} => to_binary(&query_debug(deps)?),
         QueryMsg::GetHighestAbort {} => to_binary(&query_highest_abort(deps)?),
-     }
+    }
 }
 
 fn query_echo(deps: Deps) -> StdResult<EchoQueryResponse> {
     let query: StdResult<Vec<_>> = RECEIVED_ECHO
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-    Ok(EchoQueryResponse {
-        echo: query?,
-    })
+    Ok(EchoQueryResponse { echo: query? })
 }
 fn query_key1(deps: Deps) -> StdResult<Key1QueryResponse> {
     let query: StdResult<Vec<_>> = RECEIVED_KEY1
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-    Ok(Key1QueryResponse {
-        key1: query?,
-    })
+    Ok(Key1QueryResponse { key1: query? })
 }
 fn query_key2(deps: Deps) -> StdResult<Key2QueryResponse> {
     let query: StdResult<Vec<_>> = RECEIVED_KEY2
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-    Ok(Key2QueryResponse {
-        key2: query?,
-    })
+    Ok(Key2QueryResponse { key2: query? })
 }
 fn query_key3(deps: Deps) -> StdResult<Key3QueryResponse> {
     let query: StdResult<Vec<_>> = RECEIVED_KEY3
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-    Ok(Key3QueryResponse {
-        key3: query?,
-    })
+    Ok(Key3QueryResponse { key3: query? })
 }
 fn query_lock(deps: Deps) -> StdResult<LockQueryResponse> {
     let query: StdResult<Vec<_>> = RECEIVED_LOCK
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-    Ok(LockQueryResponse {
-        lock: query?,
-    })
+    Ok(LockQueryResponse { lock: query? })
 }
 fn query_done(deps: Deps) -> StdResult<DoneQueryResponse> {
     let query: StdResult<Vec<_>> = DONE
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
-    Ok(DoneQueryResponse {
-        done: query?,
-    })
+    Ok(DoneQueryResponse { done: query? })
 }
-
 
 fn query_state(deps: Deps) -> StdResult<StateResponse> {
     let state = STATE.load(deps.storage)?;
@@ -316,7 +319,7 @@ fn query_channels(deps: Deps) -> StdResult<ChannelsResponse> {
 fn query_abort_info(deps: Deps, env: Env) -> StdResult<AbortResponse> {
     let state = STATE.load(deps.storage)?;
     // let channels = channels?;
-    
+
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     let timeout = match env.block.time.cmp(&end_time) {
         Ordering::Greater => true,
@@ -327,7 +330,7 @@ fn query_abort_info(deps: Deps, env: Env) -> StdResult<AbortResponse> {
         Some(_) => true,
         _ => false,
     };
-    
+
     Ok(AbortResponse {
         start_time: state.start_time,
         end_time: state.start_time.plus_seconds(60),
@@ -344,7 +347,6 @@ fn query_debug(deps: Deps) -> StdResult<Vec<(u32, String)>> {
         .collect();
     Ok(test?)
 }
-
 
 /*
 fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {

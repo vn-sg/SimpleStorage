@@ -176,6 +176,6 @@ pub fn convert_send_ibc_msg(channel_id: String, packet: PacketMsg, timeout: IbcT
     IbcMsg::SendPacket {
         channel_id,
         data: to_binary(&packet).unwrap(),
-        timeout: timeout,
+        timeout,
     }
 }

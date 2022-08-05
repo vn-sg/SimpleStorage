@@ -12,7 +12,7 @@ use crate::state::{
 };
 
 use crate::ContractError;
-use crate::utils::{get_id_channel_pair, get_timeout};
+use crate::utils::{get_id_channel_pair, get_timeout, convert_send_ibc_msg};
 
 pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout) -> Result<Response, ContractError> {
 
@@ -91,11 +91,12 @@ fn convert_queue_to_ibc_msgs(storage: &mut dyn Storage,
             // When chain wish to send some msgs to dest chain
             if msg_queue.len() > 0 {
                 let channel_id = CHANNELS.load(storage, chain_id.try_into().unwrap())?;
-                let msg = IbcMsg::SendPacket {
-                    channel_id,
-                    data: to_binary(&PacketMsg::MsgQueue ( msg_queue.to_vec() ) )?,
-                    timeout: timeout.clone(),
-                };
+                let msg = convert_send_ibc_msg(channel_id, PacketMsg::MsgQueue ( msg_queue.to_vec() ), timeout.clone());
+                // let msg = IbcMsg::SendPacket {
+                //     channel_id,
+                //     data: to_binary(&PacketMsg::MsgQueue ( msg_queue.to_vec() ) )?,
+                //     timeout: timeout.clone(),
+                // };
                 msgs.push(msg);
             }
         }
