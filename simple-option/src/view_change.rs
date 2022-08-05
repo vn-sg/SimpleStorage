@@ -12,21 +12,27 @@ use crate::state::{
 };
 
 use crate::ContractError;
-use crate::utils::{get_id_channel_pair};
+use crate::utils::{get_id_channel_pair, get_timeout};
 
 pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout) -> Result<Response, ContractError> {
 
-    let msgs = create_queue_view_change(storage, timeout)?;
+    let state = STATE.load(storage)?;
+    let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+
+    append_queue_view_change(storage, & mut queue, timeout.clone())?;
+    let msgs = convert_queue_to_ibc_msgs(storage, & mut queue, timeout.clone())?;
+
     Ok(Response::new()
         .add_messages(msgs)
         .add_attribute("action", "execute")
         .add_attribute("msg_type", "input"))
 }
 
-pub fn create_queue_view_change(
+pub fn append_queue_view_change(
     storage: &mut dyn Storage,
+    queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
-) -> Result<Vec<IbcMsg>, ContractError> {
+) -> Result<(), ContractError> {
     // load the state
     let state = STATE.load(storage)?;
     // Add Request message to packets_to_be_broadcasted
@@ -43,10 +49,10 @@ pub fn create_queue_view_change(
         view: state.view,
     };
     // let mut msgs: Vec<IbcMsg> = Vec::new();
-    let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+    //let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
 
     // Send Request to all parties
-    send_all_party(storage, &mut queue, request_packet, timeout.clone())?;
+    send_all_party(storage, queue, request_packet, timeout.clone())?;
 
     
     let suggest_packet = Msg::Suggest {
@@ -64,13 +70,18 @@ pub fn create_queue_view_change(
             queue[state.primary as usize].push(suggest_packet);
         }
     } else {
-        receive_queue(storage, timeout.clone(), None, vec![suggest_packet], &mut queue)?;
+        receive_queue(storage, timeout.clone(), None, vec![suggest_packet], queue)?;
     }
-    let mut state = STATE.load(storage)?;
-
     // send_all_upon_join(Proof)
-    send_all_upon_join_queue(storage, &mut queue, proof_packet, timeout.clone())?;
-    
+    send_all_upon_join_queue(storage, queue, proof_packet, timeout.clone())?;
+    Ok(())
+}
+
+fn convert_queue_to_ibc_msgs(storage: &mut dyn Storage,
+                            queue: &mut Vec<Vec<Msg>>,
+                            timeout: IbcTimeout,
+) -> Result<Vec<IbcMsg>, ContractError>{
+    let mut state = STATE.load(storage)?;
     let mut msgs = Vec::new();
     for (chain_id, msg_queue) in queue.iter().enumerate() {
         //// TESTING /////
@@ -90,10 +101,11 @@ pub fn create_queue_view_change(
             }
         }
     }
-    
     Ok(msgs)
-    
 }
+
+
+
 
 pub fn _create_queue_view_change_backup(
     deps: DepsMut,

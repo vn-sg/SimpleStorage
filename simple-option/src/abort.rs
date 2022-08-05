@@ -14,7 +14,7 @@ use crate::utils::{
 };
 
 use crate::view_change::{
-    view_change
+    view_change, append_queue_view_change
 };
 
 use crate::ibc_msg::Msg;
@@ -94,19 +94,21 @@ pub fn handle_abort(storage: &mut dyn Storage,
         if (w+1) as u32 >= state.view {
             let previous_view = state.view;
             state.view = (w + 1) as u32;
+            state.primary = (state.view % state.n) + 1;
             STATE.save(storage, &state)?;
             if previous_view != state.view {
                 DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string());
                 match reset_view_specific_maps(storage) {
                     Ok(_) => {
-
+                        
                     }
                     Err(_) => {
                         // println!("Error when reseting view maps in handle_abort");
                         return Err(StdError::GenericErr { msg: "Error when reseting view maps in handle_abort".to_string()} )
                     }
                 }         
-                let result = view_change(storage, timeout);
+                
+                let result = append_queue_view_change(storage, queue, timeout);
                 match result {
                     Ok(_) => {
 
