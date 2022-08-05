@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, Storage,
+    StdError, StdResult,
 };
 
 use std::convert::TryInto;
@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use crate::error::ContractError;
 use crate::ibc_msg::Msg;
 use crate::queue_handler::{receive_queue};
-use crate::utils::{get_timeout, init_receive_map, reset_view_specific_maps};
+use crate::utils::{get_timeout, init_receive_map};
 use crate::view_change::view_change;
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -74,31 +74,6 @@ pub fn execute(
         },
         ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
     }
-
-    // let channel_ids = state.channel_ids.clone();
-    // let channel_ids = state.channel_ids.values().cloned().collect();
-    // let channel_ids: StdResult<Vec<_>> = CHANNELS
-    //         .range(deps.storage, None, None, Order::Ascending)
-    //         .collect();
-
-    // let mut state = STATE.load(deps.storage)?;
-    // let tx_id = state.current_tx_id.clone();
-
-    // // Initialize tx info and store in local state(TXS)
-    // TXS.save(
-    //     deps.storage,
-    //     tx_id.clone(),
-    //     &Tx {
-    //         msg: msg.clone(),
-    //         no_of_votes: 1,
-    //     },
-    // )?;
-    // // Update the tx_id to assign and save current state
-    // state.current_tx_id += 1;
-
-    // STATE.save(deps.storage, &state)?;
-
-    // broadcast_response(timeout.clone(), channel_ids, packet, "broadcast_propose".to_string())
 }
 
 

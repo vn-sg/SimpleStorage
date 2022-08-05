@@ -1,3 +1,38 @@
+// execute entry_point is used for beginning new instance of IT-HS consensus
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    // let channel_ids = state.channel_ids.clone();
+    // let channel_ids = state.channel_ids.values().cloned().collect();
+    // let channel_ids: StdResult<Vec<_>> = CHANNELS
+    //         .range(deps.storage, None, None, Order::Ascending)
+    //         .collect();
+
+    // let mut state = STATE.load(deps.storage)?;
+    // let tx_id = state.current_tx_id.clone();
+
+    // // Initialize tx info and store in local state(TXS)
+    // TXS.save(
+    //     deps.storage,
+    //     tx_id.clone(),
+    //     &Tx {
+    //         msg: msg.clone(),
+    //         no_of_votes: 1,
+    //     },
+    // )?;
+    // // Update the tx_id to assign and save current state
+    // state.current_tx_id += 1;
+
+    // STATE.save(deps.storage, &state)?;
+
+    // broadcast_response(timeout.clone(), channel_ids, packet, "broadcast_propose".to_string())
+}
+
+
 // macro_rules! enum_to_str {
 //     (enum $name:ident {
 //         $($variant:ident = $val:expr),*,
