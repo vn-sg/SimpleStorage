@@ -392,45 +392,6 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     }
 }
 
-fn _handle_request_reply(deps: DepsMut, timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
-    // Upon sucessfully called the broadcast of Request Messages
-    // Load the state
-    let state = STATE.load(deps.storage)?;
-    if state.chain_id != state.primary {
-        // Upon highest_request[primary] = view
-        let prim_highest_req = HIGHEST_REQ.load(deps.storage, state.primary)?;
-        if prim_highest_req == state.view {
-            // Contruct Suggest message to delivery to primary
-            let packet = Msg::Suggest {
-                chain_id: state.chain_id,
-                view: state.view,
-                key2: state.key2,
-                key2_val: state.key2_val.clone(),
-                prev_key2: state.prev_key2,
-                key3: state.key3,
-                key3_val: state.key3_val.clone(),
-            };
-
-            let channel_id = CHANNELS.load(deps.storage, state.primary)?;
-            let msg = IbcMsg::SendPacket {
-                channel_id,
-                data: to_binary(&packet)?,
-                timeout: timeout.clone(),
-            };
-            let submsg: SubMsg = SubMsg::reply_on_success(msg, SUGGEST_REPLY_ID);
-
-            // construct Response and put Suggest message in the query on the fly
-            return Ok(Response::new()
-                .add_submessage(submsg)
-                .add_attribute("action", "send_suggest2primary".to_string()));
-        }
-    }
-
-    // TODO: Add ops for reply of Request message
-    Ok(Response::new())
-    // Add consecutive submessages
-}
-
 fn handle_suggest_reply(_deps: DepsMut, _timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
     // Upon sucessfully delivered the Suggest Message
     // Load the state

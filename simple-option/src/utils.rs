@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
 use cosmwasm_std::{
-    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage,
+    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary,
 };
 
 use crate::ibc_msg::{
-    Msg
+    Msg, PacketMsg
 };
 
 
@@ -188,4 +188,12 @@ fn _verify_channel(msg: IbcChannelOpenMsg) -> StdResult<()> {
     }
 
     Ok(())
+}
+
+pub fn convert_send_ibc_msg(channel_id: String, packet: PacketMsg, timeout: IbcTimeout) -> IbcMsg {
+    IbcMsg::SendPacket {
+        channel_id,
+        data: to_binary(&packet).unwrap(),
+        timeout: timeout,
+    }
 }

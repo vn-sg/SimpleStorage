@@ -137,7 +137,7 @@ pub const DONE: Map<String, u32> = Map::new("done");
 pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
 pub const TEST_QUEUE: Map<u32, (u32, Vec<Msg>)> = Map::new("test_queue");
 pub const DEBUG: Map<u32, String> = Map::new("debug");
-
+pub const IBC_MSG_SEND_DEBUG: Map<u32, Vec<IbcMsg>> = Map::new("ibc_msg_send_debug");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Test {
