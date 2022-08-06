@@ -54,6 +54,18 @@
     {
       "type": "object",
       "required": [
+        "get_highest_abort"
+      ],
+      "properties": {
+        "get_highest_abort": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "get_received_suggest"
       ],
       "properties": {
@@ -166,6 +178,18 @@
       ],
       "properties": {
         "get_abort_info": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_debug"
+      ],
+      "properties": {
+        "get_debug": {
           "type": "object"
         }
       },

@@ -1,3 +1,16 @@
+fn get_action<T: 'static>(to_push: T) -> Box<dyn Fn(Option<Vec<T>>) -> StdResult<Vec<T>> >{
+    Box::new(|ele: Option<Vec<T>>| -> StdResult<Vec<T>> {
+        match ele {
+            Some(mut p) => {
+                p.push(to_push);
+                Ok(p)
+            },
+            None => Ok(vec!(to_push)),
+        }
+        
+    })
+}
+
 // execute entry_point is used for beginning new instance of IT-HS consensus
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(

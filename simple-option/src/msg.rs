@@ -19,8 +19,13 @@ pub enum ExecuteMsg {
     PreInput { value: String},
     ForceAbort {},
     Abort {},
-    Trigger { behavior: String },
+    Trigger { behavior: String }
 }
+
+// pub enum Trigger {
+//     MultiPropose {},
+//     SendMsgToAll ( String )
+// }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -87,7 +92,7 @@ pub struct SendAllUponResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestQueueResponse {
-    pub test_queue: Vec<(u32, (u32, Vec<Msg>))>
+    pub test_queue: Vec<(u32, Vec<(u32, Vec<Msg>)>)>
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct EchoQueryResponse { 

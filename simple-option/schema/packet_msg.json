@@ -193,6 +193,34 @@
         {
           "type": "object",
           "required": [
+            "self_abort"
+          ],
+          "properties": {
+            "self_abort": {
+              "type": "object",
+              "required": [
+                "chain_id",
+                "view"
+              ],
+              "properties": {
+                "chain_id": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
+                "view": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
             "propose"
           ],
           "properties": {

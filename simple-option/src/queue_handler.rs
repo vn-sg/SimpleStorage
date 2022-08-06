@@ -281,19 +281,20 @@ pub fn receive_queue(
             // Handle Echo
             {
                 let key1_packet = Msg::Key1 { val: val.clone(), view };
-                let mut state = STATE.load(store)?;
 
                 // ignore messages from other views, other than abort, done and request messages
-                if view != state.view {
+                if view != STATE.load(store)?.view {
                 } else { 
-                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone())?;
-
-                    if state.key1_val != val {
-                        state.prev_key1 = state.key2 as i32;
-                        state.key1_val = val;                    
+                    // if this condition holds, we have received Echo from n - f parties on same val
+                    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone())? {
+                        let mut state = STATE.load(store)?;
+                        if state.key1_val != val {
+                            state.prev_key1 = state.key1 as i32;
+                            state.key1_val = val;                    
+                        }
+                        state.key1 = view;
+                        STATE.save(store, &state)?; 
                     }
-                    state.key1 = view;
-                    STATE.save(store, &state)?;    
                 }
                 Ok(())
 
@@ -307,14 +308,15 @@ pub fn receive_queue(
                 // ignore messages from other views, other than abort, done and request messages
                 if view != state.view {
                 } else {
-                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone())?;
-                    let mut state = STATE.load(store)?;
-                    if state.key2_val != val {
-                        state.prev_key2 = state.key2 as i32;
-                        state.key2_val = val;                    
+                    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone())? {
+                        let mut state = STATE.load(store)?;
+                        if state.key2_val != val {
+                            state.prev_key2 = state.key2 as i32;
+                            state.key2_val = val;                    
+                        }
+                        state.key2 = view;
+                        STATE.save(store, &state)?; 
                     }
-                    state.key2 = view;
-                    STATE.save(store, &state)?;    
                 }
                 Ok(())
             },
@@ -325,11 +327,12 @@ pub fn receive_queue(
                 let key3_packet = Msg::Key3 { val: val.clone(), view };
                 if view != state.view {
                 } else {
-                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone())?;
-                    let mut state = STATE.load(store)?;
-                    state.key3 = view;
-                    state.key3_val = val.clone();
-                    STATE.save(store, &state)?;    
+                    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone())? {
+                        let mut state = STATE.load(store)?;
+                        state.key3 = view;
+                        state.key3_val = val.clone();
+                        STATE.save(store, &state)?;    
+                    }
                 }
                 Ok(())
 
@@ -341,11 +344,12 @@ pub fn receive_queue(
                 let lock_packet = Msg::Lock { val: val.clone(), view }; 
                 if view != state.view {
                 } else {
-                    message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone())?;
-                    let mut state = STATE.load(store)?;
-                    state.lock = view;
-                    state.lock_val = val;
-                    STATE.save(store, &state)?;    
+                    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone())? {
+                        let mut state = STATE.load(store)?;
+                        state.lock = view;
+                        state.lock_val = val;
+                        STATE.save(store, &state)?;    
+                    }
                 }
                 Ok(())
             },
@@ -441,13 +445,23 @@ pub fn receive_queue(
             DEBUG.save(store, 300, &"LOCAL_CHANNEL_ID".to_string());
 
             //// TESTING /////
-            let mut state = STATE.load(store)?;
+            let state = STATE.load(store)?;
             let mut i = 0;
             for (chain_id, msg_queue) in queue.iter().enumerate() {
                 //// TESTING /////
-                TEST_QUEUE.save(store, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
-                state.current_tx_id += 1;
-                STATE.save(store, &state)?;
+                let chain_msg_pair = (chain_id as u32, msg_queue.to_vec());
+                let action = |packets: Option<Vec<_>>| -> StdResult<Vec<_>> {
+                    match packets {
+                        Some(mut p) => {
+                            p.push(chain_msg_pair.clone());
+                            Ok(p)
+                        },
+                        None => Ok(vec!(chain_msg_pair.clone())),
+                    }
+                };
+                TEST_QUEUE.update(store, state.current_tx_id, action)?;
+                //// TESTING /////
+
                 if chain_id != state.chain_id as usize {
                     // When chain wish to send some msgs to dest chain
                     if msg_queue.len() > 0 {
@@ -466,6 +480,13 @@ pub fn receive_queue(
                     }
                 }
             }
+
+            //// TESTING ////
+            let mut state = STATE.load(store)?;
+            state.current_tx_id += 1;
+            STATE.save(store, &state)?;
+            //// TESTING ////
+
             let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;
             let mut res = IbcReceiveResponse::new();
             
@@ -528,7 +549,7 @@ fn message_transfer_hop(
     message_type: cw_storage_plus::Map<String, HashSet<u32>>, 
     msg_to_send: Msg, 
     timeout: IbcTimeout, 
-    channel_id: Option<String>) -> Result<(), StdError> {
+    channel_id: Option<String>) -> Result<bool, StdError> {
         let mut state = STATE.load(storage)?;
         // ignore messages from other views, other than abort, done and request messages
         // detect if self-send
@@ -563,10 +584,10 @@ fn message_transfer_hop(
                 STATE.save(storage, &state)?;
                 // send_all_upon_join_queue
                 send_all_upon_join_queue(storage, queue, msg_to_send, timeout)?;
-
+                return Ok(true);
             }
         }
-        Ok(())
+        Ok(false)
     }
 
 // send_all_upon_join_queue Operation
@@ -604,12 +625,9 @@ pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet
     // self-send msg
     receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
 
-    // send <done, val> to every party
-    // Add Done msg to MsgQueue of every party
     for (chain_id, _channel_id) in &channel_ids {
         queue[*chain_id as usize].push(packet.clone());
     }
-    // send <done, val> to every party /
     
     Ok(())
 }

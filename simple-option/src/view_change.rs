@@ -2,17 +2,17 @@ use std::convert::TryInto;
 use std::vec;
 
 use cosmwasm_std::{
-    DepsMut, to_binary, IbcTimeout, Response, IbcMsg, Storage
+    DepsMut, to_binary, IbcTimeout, Response, IbcMsg, Storage, StdResult
 };
 
 use crate::ibc_msg::{PacketMsg, Msg};
 use crate::queue_handler::{receive_queue, send_all_party, send_all_upon_join_queue};
 use crate::state::{
-    HIGHEST_REQ, STATE, TEST_QUEUE, CHANNELS, IBC_MSG_SEND_DEBUG
+    HIGHEST_REQ, STATE, TEST_QUEUE, CHANNELS
 };
 
 use crate::ContractError;
-use crate::utils::{get_id_channel_pair, get_timeout, convert_send_ibc_msg};
+use crate::utils::{convert_send_ibc_msg};
 
 pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout) -> Result<Response, ContractError> {
 
@@ -20,7 +20,7 @@ pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout) -> Result<Res
     let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
 
     append_queue_view_change(storage, & mut queue, timeout.clone())?;
-    let msgs = convert_queue_to_ibc_msgs(storage, & mut queue, timeout.clone())?;
+    let msgs = convert_queue_to_ibc_msgs(storage, &queue, timeout.clone())?;
 
     Ok(Response::new()
         .add_messages(msgs)
@@ -76,19 +76,44 @@ pub fn append_queue_view_change(
     Ok(())
 }
 
-fn convert_queue_to_ibc_msgs(storage: &mut dyn Storage,
-                            queue: &mut Vec<Vec<Msg>>,
-                            timeout: IbcTimeout,
+pub fn testing_add2queue(
+    store: &mut dyn Storage,
+    chain_id: u32,
+    msg_queue: Vec<Msg>
+) -> Result<(), ContractError> {
+    //// TESTING /////
+    let chain_msg_pair = (chain_id, msg_queue);
+    let action = |packets: Option<Vec<_>>| -> StdResult<Vec<_>> {
+        match packets {
+            Some(mut p) => {
+                p.push(chain_msg_pair.clone());
+                Ok(p)
+            },
+            None => Ok(vec!(chain_msg_pair.clone())),
+        }
+    };
+    let state = STATE.load(store)?;
+    TEST_QUEUE.update(store, state.current_tx_id, action)?;
+    // TEST_QUEUE.save(storage, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
+    Ok(())
+}
+//// TESTING /////
+        
+
+pub fn convert_queue_to_ibc_msgs(
+    storage: &mut dyn Storage,
+    queue: &Vec<Vec<Msg>>,
+    timeout: IbcTimeout,
 ) -> Result<Vec<IbcMsg>, ContractError>{
-    let mut state = STATE.load(storage)?;
+    let state = STATE.load(storage)?;
     let mut msgs = Vec::new();
     for (chain_id, msg_queue) in queue.iter().enumerate() {
-        //// TESTING /////
-        TEST_QUEUE.save(storage, state.current_tx_id, &(chain_id as u32, msg_queue.to_vec()))?;
-        state.current_tx_id += 1;
-        STATE.save(storage, &state)?;
+        //// TESTING ////
+        testing_add2queue(storage, chain_id.try_into().unwrap(), msg_queue.to_vec())?;
+        //// TESTING ////
+
         if chain_id != state.chain_id as usize {
-            // When chain wish to send some msgs to dest chain
+            // When chain wishes to send some msgs to dest chain
             if msg_queue.len() > 0 {
                 let channel_id = CHANNELS.load(storage, chain_id.try_into().unwrap())?;
                 let msg = convert_send_ibc_msg(channel_id, PacketMsg::MsgQueue ( msg_queue.to_vec() ), timeout.clone());
@@ -101,5 +126,11 @@ fn convert_queue_to_ibc_msgs(storage: &mut dyn Storage,
             }
         }
     }
+    //// TESTING /////
+    let mut state = STATE.load(storage)?;
+    state.current_tx_id += 1;
+    STATE.save(storage, &state)?;
+    //// TESTING /////
+
     Ok(msgs)
 }

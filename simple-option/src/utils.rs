@@ -11,7 +11,7 @@ use crate::ibc_msg::{
 
 use cw_storage_plus::{Map};
 use crate::state::{
-    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK,
+    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,
 };
 
 /// Setting the lifetime of packets to be one hour
@@ -68,7 +68,7 @@ pub fn reset_view_specific_maps(store: &mut dyn Storage) -> StdResult<()> {
         .keys(store, None, None, Order::Ascending)
         .collect();
     for msg_type in msg_types? {
-                RECEIVED.save(store, msg_type, &HashSet::new())?;
+        RECEIVED.save(store, msg_type, &HashSet::new())?;
     }
 
     delete_map(store, RECEIVED_ECHO)?;
@@ -76,7 +76,15 @@ pub fn reset_view_specific_maps(store: &mut dyn Storage) -> StdResult<()> {
     delete_map(store, RECEIVED_KEY2)?;
     delete_map(store, RECEIVED_KEY3)?;
     delete_map(store, RECEIVED_LOCK)?;
-        
+    //// TESTING ////
+    let keys: StdResult<Vec<_>> = TEST_QUEUE
+        .keys(store, None, None, Order::Ascending)
+        .collect();
+    for v in keys? {
+        TEST_QUEUE.remove(store, v);
+    }       
+    //// TESTING ////
+
     Ok(())
 }
 
