@@ -41,6 +41,7 @@ pub enum QueryMsg {
     GetDone { },
     GetAbortInfo { },
     GetDebug { },
+    GetIbcDebug {},
 }
 
 // We define a custom struct for each query response

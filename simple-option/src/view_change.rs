@@ -22,10 +22,15 @@ pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout) -> Result<Res
     append_queue_view_change(storage, & mut queue, timeout.clone())?;
     let msgs = convert_queue_to_ibc_msgs(storage, & mut queue, timeout.clone())?;
 
-    Ok(Response::new()
+
+    let response = Response::new()
         .add_messages(msgs)
         .add_attribute("action", "execute")
-        .add_attribute("msg_type", "input"))
+        .add_attribute("msg_type", "input");
+
+    IBC_MSG_SEND_DEBUG.save(storage, "view_change".to_string(),&response.messages)?;    
+
+    Ok(response)
 }
 
 pub fn append_queue_view_change(

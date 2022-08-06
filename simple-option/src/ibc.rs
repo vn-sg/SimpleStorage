@@ -13,7 +13,7 @@ use crate::ibc_msg::{
 };
 
 use crate::state::{
-    CHANNELS, STATE, HIGHEST_ABORT,
+    CHANNELS, STATE, HIGHEST_ABORT, IBC_MSG_SEND_DEBUG,
 };
 use crate::utils::{get_timeout, F};
 use crate::queue_handler::{receive_queue};
@@ -132,7 +132,10 @@ pub fn ibc_packet_receive(
             {
                 let state = STATE.load(deps.storage)?;
                 let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-                receive_queue(deps.storage, get_timeout(&env), Some(dest_channel_id), q, &mut queue)
+                let result = receive_queue(deps.storage, get_timeout(&env), Some(dest_channel_id), q, &mut queue);
+                IBC_MSG_SEND_DEBUG.save(deps.storage, "ibc_packet_receive".to_string(), &result.as_ref().unwrap().messages);
+
+                return result;
             },
             PacketMsg::WhoAmI { chain_id } => receive_who_am_i(deps, dest_channel_id, chain_id),
         }

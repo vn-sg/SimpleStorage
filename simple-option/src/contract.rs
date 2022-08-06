@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult,
+    StdError, StdResult, SubMsg,
 };
 
 use std::convert::TryInto;
@@ -24,7 +24,7 @@ use crate::msg::{
     EchoQueryResponse, AbortResponse, HighestAbortResponse,
 };
 use crate::state::{
-    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, HIGHEST_ABORT, DEBUG
+    State, CHANNELS, HIGHEST_REQ, STATE, TEST, DONE, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, HIGHEST_ABORT, DEBUG, IBC_MSG_SEND_DEBUG
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -157,6 +157,8 @@ pub fn handle_execute_abort(
             //         .add_attribute("action", "execute")
             //         .add_attribute("msg_type", "abort"))        
             // }
+
+            IBC_MSG_SEND_DEBUG.save(deps.storage, "ABORT".to_string(), &subMsgs)?;
             Ok(Response::new()
                 .add_attribute("action", "execute")
                 .add_submessages(subMsgs)
@@ -190,6 +192,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetAbortInfo {} => to_binary(&query_abort_info(deps, env)?),
         QueryMsg::GetDebug {} =>  to_binary(&query_debug(deps)?),
         QueryMsg::GetHighestAbort {} => to_binary(&query_highest_abort(deps)?),
+        QueryMsg::GetIbcDebug {} => to_binary(&query_ibc_debug(deps)?),
      }
 }
 
@@ -345,6 +348,12 @@ fn query_debug(deps: Deps) -> StdResult<Vec<(u32, String)>> {
     Ok(test?)
 }
 
+fn query_ibc_debug(deps: Deps) -> StdResult<Vec<(String, Vec<SubMsg>)>> {
+    let test: StdResult<Vec<_>> = IBC_MSG_SEND_DEBUG
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(test?)
+}
 
 /*
 fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
