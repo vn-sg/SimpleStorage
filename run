@@ -360,7 +360,35 @@ query() {
   elif [ $3 = "queue" ]; then
     QUERY_MSG='{"get_test_queue": {}}' 
   elif [ $3 = "chan" ]; then
+    if [ -z "$4" ]; then
+      echo "Please specify no of blockchains: "
+      echo "Usage: ./run q 0 chan [NUM_CHAINS]"
+      echo "Example: ./run q 0 chan 4"
+      exit 1
+    fi
     QUERY_MSG='{"get_channels": {}}' 
+
+    CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+    echo "ibc-0: $(wasmd query wasm contract-state smart $ADDR0 "$QUERY_MSG" --output json --chain-id "ibc-0" --node $CHAIN_0_NODE)"
+    
+    if [ $4 -ge "2" ]; then
+      CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+      ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+      echo "ibc-1: $(wasmd query wasm contract-state smart $ADDR1 "$QUERY_MSG" --output json --chain-id "ibc-1" --node $CHAIN_1_NODE)"
+    fi
+    if [ $4 -ge "3" ]; then
+      CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+      ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+      echo "ibc-2: $(wasmd query wasm contract-state smart $ADDR2 "$QUERY_MSG" --output json --chain-id "ibc-2" --node $CHAIN_2_NODE)"
+    fi
+    if [ $4 -ge "4" ]; then
+      CODE_ID_CHAIN3=$(wasmd query wasm list-code --node $CHAIN_3_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+      ADDR3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+      echo "ibc-3: $(wasmd query wasm contract-state smart $ADDR3 "$QUERY_MSG" --output json --chain-id "ibc-3" --node $CHAIN_3_NODE)"
+    fi
+
+    exit 0
   elif [ $3 = "test" ]; then
     QUERY_MSG='{"get_test": {}}' 
   elif [ $3 = "val" ]; then
@@ -465,26 +493,24 @@ execute3() {
 }
 
 execute() {
-  # PARAM=$1
+  EXE_TYPE=$1
+  NUM_CHAINS=$2
+
   # Retrieve the lastest code_id
   CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN3=$(wasmd query wasm list-code --node $CHAIN_3_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-
   # fetch address of the smart contract using the code_id
   ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
   ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-  ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
-  ADDR3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+  
   # execute set message
   # three random EXEC_msg for testing purposes
   # EXEC_MSG='{ "set": { "key": "test_key1", "value": "test_value1" } }'
-  if [ $1 = "pre_input" ]; then 
-    EXEC_MSG0='{ "pre_input": { "value": "INPUT_CHAIN0"} }'
-    EXEC_MSG1='{ "pre_input": { "value": "INPUT_CHAIN1"} }'
-    EXEC_MSG2='{ "pre_input": { "value": "INPUT_CHAIN2"} }'
-    EXEC_MSG3='{ "pre_input": { "value": "INPUT_CHAIN3"} }'
+  if [ $EXE_TYPE = "pre_input" ]; then 
+    EXEC_MSG0='{ "pre_input": { "value": "PRE_INPUT_CHAIN0"} }'
+    EXEC_MSG1='{ "pre_input": { "value": "PRE_INPUT_CHAIN1"} }'
+    EXEC_MSG2='{ "pre_input": { "value": "PRE_INPUT_CHAIN2"} }'
+    EXEC_MSG3='{ "pre_input": { "value": "PRE_INPUT_CHAIN3"} }'
   else
     EXEC_MSG0='{ "input": { "value": "INPUT_CHAIN0"} }'
     EXEC_MSG1='{ "input": { "value": "INPUT_CHAIN1"} }'
@@ -492,13 +518,31 @@ execute() {
     EXEC_MSG3='{ "input": { "value": "INPUT_CHAIN3"} }'
   fi
 
-
   set -x
-  
   wasmd tx wasm execute $ADDR0 "$EXEC_MSG0" --output json --from ibc-0 $FLAG0 -y
   wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
-  wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
-  wasmd tx wasm execute $ADDR3 "$EXEC_MSG3" --output json --from ibc-3 $FLAG3 -y
+  set +x
+
+
+  if [ $NUM_CHAINS = "3" ]; then 
+    CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    set -x
+    wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
+    set +x
+  fi
+  if [ $NUM_CHAINS = "4" ]; then 
+    CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    CODE_ID_CHAIN3=$(wasmd query wasm list-code --node $CHAIN_3_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    ADDR3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+    set -x
+    wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
+    wasmd tx wasm execute $ADDR3 "$EXEC_MSG3" --output json --from ibc-3 $FLAG3 -y
+    set +x
+
+  fi
+
 
   exit 0
 }
@@ -620,13 +664,25 @@ if [ $1 = "e3" ]; then
 fi
 
 # execute command
-if [ $1 = "e4" ]; then 
-  execute "4"
+if [ $1 = "e" ]; then 
+  if [ -z "$2" ]; then
+    echo "Unknown execution configuration: "
+    echo "Usage: ./run e [CONFIGURATION] "
+    echo "Example: ./run e 4 "
+    exit 1
+  fi
+  execute "e" $2
 fi
 
 # execute command
-if [ $1 = "init4" ]; then 
-  execute "pre_input"
+if [ $1 = "init" ]; then 
+  if [ -z "$2" ]; then
+    echo "Unknown initialization configuration: "
+    echo "Usage: ./run init [CONFIGURATION] "
+    echo "Example: ./run init 4 "
+    exit 1
+  fi
+  execute "init" $2
 fi
 
 # killall command

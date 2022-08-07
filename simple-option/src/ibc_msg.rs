@@ -96,7 +96,7 @@ impl Msg {
             Msg::Key3 { val: _, view : _} => stringify!(Key3),
             Msg::Lock { val: _, view : _} => stringify!(Lock),
             Msg::Done { val: _ } => stringify!(Done),
-            Msg::SelfAbort { view, chain_id } => stringify!(SelfAbort),
+            Msg::SelfAbort { view: _, chain_id: _ } => stringify!(SelfAbort),
         }
     }
 }

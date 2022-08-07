@@ -24,8 +24,8 @@ use crate::msg::{
     StateResponse, TestQueueResponse,
 };
 use crate::state::{
-    State, CHANNELS, DEBUG, DONE, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO,
-    RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST,
+    State, CHANNELS, DEBUG, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO,
+    RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST, RECEIVED_DONE,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
 
@@ -387,7 +387,7 @@ fn query_lock(deps: Deps) -> StdResult<LockQueryResponse> {
     Ok(LockQueryResponse { lock: query? })
 }
 fn query_done(deps: Deps) -> StdResult<DoneQueryResponse> {
-    let query: StdResult<Vec<_>> = DONE
+    let query: StdResult<Vec<_>> = RECEIVED_DONE
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(DoneQueryResponse { done: query? })

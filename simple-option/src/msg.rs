@@ -116,7 +116,7 @@ pub struct LockQueryResponse {
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DoneQueryResponse { 
-    pub done: Vec<(String, u32)>
+    pub done: Vec<(String, HashSet<u32>)>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
