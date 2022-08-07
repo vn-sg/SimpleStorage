@@ -1,13 +1,12 @@
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, IbcTimeout, Response, StdResult, SubMsg,
+    entry_point, from_slice, to_binary, Binary, DepsMut, Env, Event, StdResult,
 };
 use cosmwasm_std::{
     IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
 };
 
-use crate::contract::{REQUEST_REPLY_ID};
 use crate::ibc_msg::{
     AcknowledgementMsg, PacketMsg, WhoAmIResponse, ProofResponse, EchoResponse, Key1Response, Key2Response, Key3Response, LockResponse, DoneResponse, Msg,
 };
@@ -17,8 +16,6 @@ use crate::state::{
 };
 use crate::utils::{get_timeout, F};
 use crate::queue_handler::{receive_queue};
-
-use crate::ContractError;
 
 #[entry_point]
 /// enforces ordering and versioing constraints
@@ -133,7 +130,7 @@ pub fn ibc_packet_receive(
                 let state = STATE.load(deps.storage)?;
                 let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
                 let result = receive_queue(deps.storage, get_timeout(&env), Some(dest_channel_id), q, &mut queue, &env);
-                IBC_MSG_SEND_DEBUG.save(deps.storage, "ibc_packet_receive".to_string(), &result.as_ref().unwrap().messages);
+                IBC_MSG_SEND_DEBUG.save(deps.storage, "ibc_packet_receive".to_string(), &result.as_ref().unwrap().messages)?;
 
                 return result;
             },

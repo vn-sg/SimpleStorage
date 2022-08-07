@@ -210,7 +210,7 @@ fn handle_proof(
     key1_val: String,
     prev_key1: i32,
     view: u32,
-    env: &Env
+    _env: &Env
 ) -> StdResult<()> {
     let state = STATE.load(store)?;
     // detect if self-send
@@ -408,7 +408,6 @@ pub fn receive_queue(
     queue: &mut Vec<Vec<Msg>>,
     env: &Env,
 ) -> StdResult<IbcReceiveResponse> {
-    let state = STATE.load(store)?;
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
     for msg in queue_to_process {
         // TODO skip...
@@ -451,7 +450,7 @@ pub fn receive_queue(
             Msg::Done { val } => handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env),
             Msg::Abort { view, chain_id } => 
             {
-                DEBUG.save(store, 200+chain_id, &"RECEIVED_ABORT".to_string());
+                DEBUG.save(store, 200+chain_id, &"RECEIVED_ABORT".to_string())?;
                 handle_abort(store, queue, view, chain_id, timeout.clone(), env)
             },
         };
@@ -466,7 +465,7 @@ pub fn receive_queue(
             // Generate msg queue to send
             let mut msgs = Vec::new();
             // let timeout = get_timeout(env);
-            DEBUG.save(store, 300, &"LOCAL_CHANNEL_ID".to_string());
+            DEBUG.save(store, 300, &"LOCAL_CHANNEL_ID".to_string())?;
 
             //// TESTING /////
             let state = STATE.load(store)?;
@@ -494,7 +493,7 @@ pub fn receive_queue(
                         let first_msg_name = msg_queue[0].name();
                         let debug_str = format!("{} {} FIRST MESSAGE LEN {} TO CHAIN_ID: {}" , 
                                                         "SEND_PACKET QUEUE SIZE", msg_queue.len(), first_msg_name, chain_id);   
-                        DEBUG.save(store, 400+i, &debug_str);
+                        DEBUG.save(store, 400+i, &debug_str)?;
                         let msg = IbcMsg::SendPacket {
                             channel_id,
                             data: to_binary(&PacketMsg::MsgQueue ( msg_queue.to_vec() ) )?,

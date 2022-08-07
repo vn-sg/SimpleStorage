@@ -25,14 +25,14 @@ pub fn handle_abort(storage: &mut dyn Storage,
                     ) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     
-    let mut loadedVal = 0;
+    let mut loaded_val: i32 = 0;
     let option = HIGHEST_ABORT.load(storage, sender_chain_id);
     match option {
-        Ok(val) => loadedVal = val,
+        Ok(val) => loaded_val = val,
         Err(_) => return Err(StdError::GenericErr { msg: "handle_abort cannot find loadedVal".to_string()} ), 
     }
 
-    if ((loadedVal + 1) as u32)< (view+1) {
+    if ((loaded_val + 1) as u32)< (view+1) {
         HIGHEST_ABORT.update(storage, sender_chain_id, |option| -> StdResult<i32> {
             match option {
                 Some(_val) => Ok(view as i32),
@@ -55,17 +55,17 @@ pub fn handle_abort(storage: &mut dyn Storage,
         // Sort will sort the array ascendingly... [-1,0,-1,-1] --> [-1,-1,-1,0]..
         // F+1 highest meaning n-F+1
         let u = vector_values[ (vector_values.len()-(F+1) as usize)]; 
-        let mut loadedVal = 0;
+        let mut loaded_val: i32 = 0;
         match HIGHEST_ABORT.load(storage, sender_chain_id) {
-            Ok(val) => loadedVal = val,
-            Err(_) => return Err(StdError::GenericErr { msg: "handle_abort cannot find loadedVal part 2".to_string()} ), 
+            Ok(val) => loaded_val = val,
+            Err(_) => return Err(StdError::GenericErr { msg: "handle_abort cannot find loaded_val part 2".to_string()} ), 
         }
 
-        if u > loadedVal {
+        if u > loaded_val {
             if u > -1 {
                 let abort_packet = Msg::Abort { view: u as u32, chain_id: state.chain_id};
                 let channel_ids = get_id_channel_pair_from_storage(storage)?;
-                DEBUG.save(storage, 1200, &"CLONE_ABORT_PACKET".to_string());
+                DEBUG.save(storage, 1200, &"CLONE_ABORT_PACKET".to_string())?;
                 for (chain_id, _channel_id) in &channel_ids {
                     queue[*chain_id as usize].push(abort_packet.clone());
                 }
@@ -101,7 +101,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
             state.start_time = env.block.time;
             STATE.save(storage, &state)?;
             if previous_view != state.view {
-                DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string());
+                DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string())?;
                 match reset_view_specific_maps(storage) {
                     Ok(_) => {
                         

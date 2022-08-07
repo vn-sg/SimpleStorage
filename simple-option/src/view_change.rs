@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::vec;
 
 use cosmwasm_std::{
-    DepsMut, to_binary, IbcTimeout, Response, IbcMsg, Storage, StdResult, Env
+    IbcTimeout, Response, IbcMsg, Storage, StdResult, Env
 };
 
 use crate::ibc_msg::{PacketMsg, Msg};
