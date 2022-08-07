@@ -2,7 +2,6 @@ use cosmwasm_std::{
     StdResult, Order, StdError, Storage, IbcTimeout, Env
 };
 
-use crate::ContractError;
 use crate::utils::{F, NUMBER_OF_NODES, get_id_channel_pair_from_storage, get_timeout};
 use crate::state::{
     STATE, HIGHEST_ABORT, DEBUG
