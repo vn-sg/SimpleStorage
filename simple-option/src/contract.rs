@@ -86,7 +86,7 @@ pub fn handle_trigger(
     match behavior.as_str() {
         "multi-propose" => trigger_multi_propose(deps, env),
         "key1_diff_val" => trigger_key1_diff_val(deps, env),
-        "abort" => trigger_abort(deps, env),
+        "abort" => trigger_abort(deps, &env),
         "done" => trigger_done(deps, env),
         _ => Ok(Response::new()
                 .add_attribute("action", "trigger")
@@ -110,7 +110,7 @@ fn trigger_done(
     let done_packet = Msg::Done {
         val: "MALICIOUS_VAL".to_string()
     };
-    send_all_party(deps.storage, &mut queue, done_packet, get_timeout(&env))?;
+    send_all_party(deps.storage, &mut queue, done_packet, get_timeout(&env), &env)?;
     let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
 
     Ok(res
@@ -119,7 +119,7 @@ fn trigger_done(
 
 fn trigger_abort(
     deps: DepsMut,
-    env: Env
+    env: &Env
 ) -> Result<Response, ContractError> {
     let res = 
     Response::new()
@@ -139,7 +139,7 @@ fn trigger_abort(
         view: state.view,
         chain_id: state.chain_id,
     };
-    send_all_party(deps.storage, &mut queue, abort_packet, get_timeout(&env))?;
+    send_all_party(deps.storage, &mut queue, abort_packet, get_timeout(&env), env)?;
     let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
 
     Ok(res
@@ -259,7 +259,7 @@ pub fn handle_execute_input(
     STATE.save(deps.storage, &state)?;
 
     // By calling view_change(), Request messages will be delivered to all chains that we established a channel with
-    view_change(deps.storage, timeout.clone())
+    view_change(deps.storage, timeout.clone(), &env)
 
     // broadcast message
 }
@@ -302,6 +302,7 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
                 Some("ABORT_UNUSED_CHANNEL".to_string()),
                 vec![abort_packet.clone()],
                 &mut queue,
+                &env
             )?;
 
             let subMsgs = response.messages;

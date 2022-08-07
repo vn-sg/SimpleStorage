@@ -1,6 +1,6 @@
 
 use cosmwasm_std::{
-    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout
+    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env
 };
 
 use std::collections::HashSet;
@@ -24,7 +24,8 @@ fn handle_propose(
     chain_id: u32,
     k: u32, 
     v: String,
-    view: u32 
+    view: u32 ,
+    env: &Env
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
     // ignore messages from other views, other than abort, done and request messages
@@ -50,7 +51,7 @@ fn handle_propose(
             // send_all_upon_join_queue(<echo, k, v, view>)
             if broadcast {
                 let echo_packet = Msg::Echo { val: v, view };
-                send_all_upon_join_queue(store, queue, echo_packet, timeout)?;
+                send_all_upon_join_queue(store, queue, echo_packet, timeout, env)?;
             }
             // send_all_upon_join_queue(<echo, k, v, view>)/
 
@@ -119,7 +120,8 @@ fn handle_suggest(
     key2_val: String,
     prev_key2: i32,
     key3: u32,
-    key3_val: String
+    key3_val: String,
+    env: &Env
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
 
@@ -162,7 +164,7 @@ fn handle_suggest(
                     view: state.view,
                 };
                 
-                send_all_upon_join_queue(store, queue, propose_packet, timeout)?;
+                send_all_upon_join_queue(store, queue, propose_packet, timeout, env)?;
                 /*
 
                 // send_all_upon_join_queue(<propose, k, v, view>)
@@ -207,7 +209,8 @@ fn handle_proof(
     key1: u32,
     key1_val: String,
     prev_key1: i32,
-    view: u32
+    view: u32,
+    env: &Env
 ) -> StdResult<()> {
     let state = STATE.load(store)?;
     // detect if self-send
@@ -245,13 +248,14 @@ fn handle_echo(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: String,
-    view: u32
+    view: u32,
+    env: &Env
 ) -> StdResult<()> {
     let key1_packet = Msg::Key1 { val: val.clone(), view };
 
     // ignore messages from other views, other than abort, done and request messages
     // if this condition holds, we have received Echo from n - f parties on same val
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone())? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone(), env)? {
         let mut state = STATE.load(store)?;
         if state.key1_val != val {
             state.prev_key1 = state.key1 as i32;
@@ -271,13 +275,14 @@ fn handle_key1(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: String,
-    view: u32
+    view: u32,
+    env: &Env
 ) -> StdResult<()> {
 
  
     // ignore messages from other views, other than abort, done and request messages
     let key2_packet = Msg::Key2 { val: val.clone(), view };
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone())? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone(), env)? {
         let mut state = STATE.load(store)?;
         if state.key2_val != val {
             state.prev_key2 = state.key2 as i32;
@@ -297,10 +302,11 @@ fn handle_key2(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: String,
-    view: u32
+    view: u32,
+    env: &Env
 ) -> StdResult<()> {
     let key3_packet = Msg::Key3 { val: val.clone(), view };
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone())? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone(), env)? {
         let mut state = STATE.load(store)?;
         state.key3 = view;
         state.key3_val = val.clone();
@@ -317,10 +323,11 @@ fn handle_key3(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: String,
-    view: u32
+    view: u32,
+    env: &Env
 ) -> StdResult<()> {
     let lock_packet = Msg::Lock { val: val.clone(), view }; 
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone())? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone(),env)? {
         let mut state = STATE.load(store)?;
         state.lock = view;
         state.lock_val = val;
@@ -337,12 +344,13 @@ fn handle_lock(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: String,
-    view: u32
+    view: u32,
+    env: &Env
 ) -> StdResult<()> {        
     let done_packet = Msg::Done { val: val.clone() };
     // ignore messages from other views, other than abort, done and request messages
     // upon receiving from n - f parties with the same val
-    message_transfer_hop(store, val, view, queue, RECEIVED_LOCK, done_packet.clone(), timeout.clone(), local_channel_id.clone())?;
+    message_transfer_hop(store, val, view, queue, RECEIVED_LOCK, done_packet.clone(), timeout.clone(), local_channel_id.clone(), env)?;
         // let mut state = STATE.load(store)?;
         // state.sent.insert(done_packet.name().to_string());
         // STATE.save(store, &state)?;
@@ -359,10 +367,11 @@ fn handle_done(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: String,
+    env: &Env
 ) -> StdResult<()> {   
     let state = STATE.load(store)?;
     // upon receiving from n - f parties with the same val
-    if message_transfer_hop(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone())? {
+    if message_transfer_hop(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone(), env)? {
         // decide and terminate
         let mut state = STATE.load(store)?;
         state.done = Some(val.clone());
@@ -396,7 +405,8 @@ pub fn receive_queue(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     queue_to_process: Vec<Msg>,
-    queue: &mut Vec<Vec<Msg>>
+    queue: &mut Vec<Vec<Msg>>,
+    env: &Env,
 ) -> StdResult<IbcReceiveResponse> {
     let state = STATE.load(store)?;
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
@@ -412,7 +422,7 @@ pub fn receive_queue(
                 k,
                 v,
                 view,
-            } => handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view),
+            } => handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view, env),
             Msg::Request { 
                 view, 
                 chain_id 
@@ -425,31 +435,25 @@ pub fn receive_queue(
                 prev_key2,
                 key3,
                 key3_val,
-            } => handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val),
+            } => handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val, env),
 
             Msg::Proof {
                 key1,
                 key1_val,
                 prev_key1,
                 view,
-            } => handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view),
-            Msg::Echo { val, view } => handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view),
-            Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view),
-            Msg::Key2 { val, view } => handle_key2(store, queue, timeout.clone(), local_channel_id.clone(), val, view),
-            Msg::Key3 { val, view } => handle_key3(store, queue, timeout.clone(), local_channel_id.clone(), val, view),
-            Msg::Lock { val, view } => handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view),
-            Msg::Done { val } => handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val),
+            } => handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view,env),
+            Msg::Echo { val, view } => handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Key2 { val, view } => handle_key2(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Key3 { val, view } => handle_key3(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Lock { val, view } => handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Done { val } => handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env),
             Msg::Abort { view, chain_id } => 
             {
                 DEBUG.save(store, 200+chain_id, &"RECEIVED_ABORT".to_string());
-                handle_abort(store, queue, view, chain_id, timeout.clone())
+                handle_abort(store, queue, view, chain_id, timeout.clone(), env)
             },
-            Msg::SelfAbort { view, chain_id } => 
-            {
-                DEBUG.save(store, 100+chain_id, &"RECEIVED_SELF_ABORT".to_string());
-                let abort_packet = Msg::Abort { view: state.view, chain_id: state.chain_id};
-                send_all_party(store, queue, abort_packet, timeout.clone())
-            }
         };
         
         // unwrap the result to handle any errors
@@ -570,7 +574,9 @@ fn message_transfer_hop(
     message_type: cw_storage_plus::Map<String, HashSet<u32>>, 
     msg_to_send: Msg, 
     timeout: IbcTimeout, 
-    channel_id: Option<String>) -> Result<bool, StdError> {
+    channel_id: Option<String>, 
+    env: &Env,
+) -> Result<bool, StdError> {
         let state = STATE.load(storage)?;
         // ignore messages from other views, other than abort, done and request messages
         if view != state.view && message_type.namespace() != "received_done".as_bytes(){
@@ -603,7 +609,7 @@ fn message_transfer_hop(
                     let mut state = STATE.load(storage)?;
                     state.sent.insert(msg_to_send.name().to_string());
                     STATE.save(storage, &state)?;
-                    send_all_party(storage, queue, msg_to_send, timeout.clone())?;
+                    send_all_party(storage, queue, msg_to_send, timeout.clone(), env)?;
                 }
                 // upon receiving from n - f parties with the same val
                 if set.len() >= (state.n - F).try_into().unwrap() {
@@ -618,11 +624,11 @@ fn message_transfer_hop(
                 STATE.save(storage, &state)?;
                 // if received Lock, ensure we send <done, val> to every party
                 if message_type.namespace() == "received_lock".as_bytes() {
-                    send_all_party(storage, queue, msg_to_send, timeout)?;
+                    send_all_party(storage, queue, msg_to_send, timeout, env)?;
                     return Ok(true);
                 }
                 // send_all_upon_join_queue
-                send_all_upon_join_queue(storage, queue, msg_to_send, timeout)?;
+                send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
                 return Ok(true);
             }
         }
@@ -630,11 +636,11 @@ fn message_transfer_hop(
     }
 
 // send_all_upon_join_queue Operation
-pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet_msg: Msg, timeout: IbcTimeout) -> Result<(), StdError> {
+pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet_msg: Msg, timeout: IbcTimeout, env: &Env) -> Result<(), StdError> {
     let state = STATE.load(storage)?;
     let channel_ids = get_id_channel_pair_from_storage(storage)?;
     // self-send msg
-    receive_queue(storage, timeout, None, vec![packet_msg.clone()], queue)?;
+    receive_queue(storage, timeout, None, vec![packet_msg.clone()], queue, env)?;
 
     for (chain_id, _channel_id) in &channel_ids {
         let highest_request = HIGHEST_REQ.load(storage, chain_id.clone())?;
@@ -659,10 +665,10 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<M
     Ok(())
 }
 
-pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet: Msg, timeout: IbcTimeout) -> Result<(), StdError> {
+pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet: Msg, timeout: IbcTimeout, env: &Env) -> Result<(), StdError> {
     let channel_ids = get_id_channel_pair_from_storage(store)?;
     // self-send msg
-    receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
+    receive_queue(store, timeout, None, vec![packet.clone()], queue, env)?;
 
     for (chain_id, _channel_id) in &channel_ids {
         queue[*chain_id as usize].push(packet.clone());

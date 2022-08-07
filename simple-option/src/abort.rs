@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    StdResult, Order, StdError, Storage, IbcTimeout
+    StdResult, Order, StdError, Storage, IbcTimeout, Env
 };
 
 use crate::ContractError;
@@ -21,7 +21,9 @@ use crate::ibc_msg::Msg;
 
 pub fn handle_abort(storage: &mut dyn Storage, 
                     queue: &mut Vec<Vec<Msg>>, view: u32, 
-                    sender_chain_id: u32, timeout: IbcTimeout) -> Result<(), StdError> {
+                    sender_chain_id: u32, timeout: IbcTimeout,
+                    env: &Env,
+                    ) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     
     let mut loadedVal = 0;
@@ -97,6 +99,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
             let previous_view = state.view;
             state.view = (w + 1) as u32;
             state.primary = (state.view % state.n) + 1;
+            state.start_time = env.block.time;
             STATE.save(storage, &state)?;
             if previous_view != state.view {
                 DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string());
@@ -110,7 +113,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
                     }
                 }         
                 
-                let result = append_queue_view_change(storage, queue, timeout);
+                let result = append_queue_view_change(storage, queue, timeout, env);
                 match result {
                     Ok(_) => {
 
@@ -162,7 +165,7 @@ mod tests {
         assert_eq!(mock_state.view, 0);
 
 
-        let result = handle_abort(storage, & mut queue, 0, 1, env.block.time.into());
+        let result = handle_abort(storage, & mut queue, 0, 1, env.block.time.into(), &env);
         match result {
             Ok(_) => (),
             Err(msg) => {
@@ -181,7 +184,7 @@ mod tests {
         assert_eq!(abort2, -1);
         assert_eq!(abort3, -1);
 
-        let result = handle_abort(storage, & mut queue ,0, 0, env.block.time.into());
+        let result = handle_abort(storage, & mut queue ,0, 0, env.block.time.into(), &env);
         match result {
             Ok(_) => (),
             Err(msg) => {
