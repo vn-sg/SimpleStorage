@@ -522,7 +522,8 @@ pub fn receive_queue(
                 .set_ack(acknowledgement)
                 .add_attribute("action", "receive_msg_queue"))
         },
-        None => Ok(IbcReceiveResponse::new()),
+        None => Ok(IbcReceiveResponse::new().set_ack(b"{}")
+        .add_attribute("action", "ibc_packet_ack"))
     }
 
 }

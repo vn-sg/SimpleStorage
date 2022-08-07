@@ -1,6 +1,6 @@
 use std::collections::{HashSet};
 
-use cosmwasm_std::{IbcMsg, Timestamp};
+use cosmwasm_std::{IbcMsg, Timestamp, SubMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +138,7 @@ pub const RECEIVED_DONE: Map<String, HashSet<u32>> = Map::new("received_done");
 pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
 pub const TEST_QUEUE: Map<u32, Vec<(u32, Vec<Msg>)> > = Map::new("test_queue");
 pub const DEBUG: Map<u32, String> = Map::new("debug");
-pub const IBC_MSG_SEND_DEBUG: Map<u32, Msg> = Map::new("ibc_msg_send_debug");
+pub const IBC_MSG_SEND_DEBUG: Map<String, Vec<SubMsg>> = Map::new("ibc_msg_send_debug");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Test {
