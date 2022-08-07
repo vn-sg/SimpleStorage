@@ -51,8 +51,9 @@ pub fn handle_abort(storage: &mut dyn Storage,
         };
         vector_values.sort();
 
-        
-        let u = vector_values[ (F+1-1) as usize]; 
+        // Sort will sort the array ascendingly... [-1,0,-1,-1] --> [-1,-1,-1,0]..
+        // F+1 highest meaning n-F+1
+        let u = vector_values[ (vector_values.len()-(F+1) as usize)]; 
         let mut loadedVal = 0;
         match HIGHEST_ABORT.load(storage, sender_chain_id) {
             Ok(val) => loadedVal = val,
@@ -88,7 +89,8 @@ pub fn handle_abort(storage: &mut dyn Storage,
         };
         vector_values.sort();        
 
-        let idx = state.n-F-1;
+        // Sort will sort the array ascendingly... [-1,0,-1,-1] --> [-1,-1,-1,0]
+        let idx = vector_values.len()-(state.n-F) as usize;
         // println!("state.n is {} F is {} vector_values size is {} idx is {}", state.n, F, vector_values.len(), idx);
         let w = vector_values[idx as usize];
         if (w+1) as u32 >= state.view {
