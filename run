@@ -439,59 +439,6 @@ trigger() {
   exit 0
 }
 
-execute1() {
-
-  # Retrieve the lastest code_id
-  CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-
-  # fetch address of the smart contract using the code_id
-  ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-
-  # execute input message
-  EXEC_MSG0='{ "input": { "value": "00000"} }'
-  EXEC_MSG1='{ "input": { "value": "11111"} }'
-
-  set -x
-  
-  wasmd tx wasm execute $ADDR0 "$EXEC_MSG0" --output json --from ibc-0 $FLAG0 -y
-  wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
-
-  set +x
-
-  echo "Execution Successful!"
-
-  exit 0
-}
-
-execute3() {
-
-  # Retrieve the lastest code_id
-  CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-
-  # fetch address of the smart contract using the code_id
-  ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-  ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
-
-  # execute set message
-  # three random EXEC_msg for testing purposes
-  EXEC_MSG0='{ "input": { "value": "000"} }'
-  EXEC_MSG1='{ "input": { "value": "111"} }'
-  EXEC_MSG2='{ "input": { "value": "222"} }'
-
-  set -x
-  
-  wasmd tx wasm execute $ADDR0 "$EXEC_MSG0" --output json --from ibc-0 $FLAG0 -y
-  wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
-  wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
-
-  exit 0
-}
-
 execute() {
   EXE_TYPE=$1
   NUM_CHAINS=$2
@@ -500,13 +447,13 @@ execute() {
   CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
   # fetch address of the smart contract using the code_id
   ADDR0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+  # CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  # ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
   
-  # execute set message
-  # three random EXEC_msg for testing purposes
+  # execute input message
   # EXEC_MSG='{ "set": { "key": "test_key1", "value": "test_value1" } }'
   if [ $EXE_TYPE = "pre_input" ]; then 
+    # three random EXEC_msg for testing purposes
     EXEC_MSG0='{ "pre_input": { "value": "PRE_INPUT_CHAIN0"} }'
     EXEC_MSG1='{ "pre_input": { "value": "PRE_INPUT_CHAIN1"} }'
     EXEC_MSG2='{ "pre_input": { "value": "PRE_INPUT_CHAIN2"} }'
@@ -520,27 +467,29 @@ execute() {
 
   set -x
   wasmd tx wasm execute $ADDR0 "$EXEC_MSG0" --output json --from ibc-0 $FLAG0 -y
-  wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
   set +x
 
 
-  if [ $NUM_CHAINS = "3" ]; then 
+  if [ $4 -ge "2" ]; then
+    CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+    set -x
+    wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
+    set +x
+  fi
+  if [ $NUM_CHAINS -ge "3" ]; then 
     CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
     ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
     set -x
     wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
     set +x
   fi
-  if [ $NUM_CHAINS = "4" ]; then 
-    CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-    ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+  if [ $NUM_CHAINS -ge "4" ]; then 
     CODE_ID_CHAIN3=$(wasmd query wasm list-code --node $CHAIN_3_NODE --output json | jq -r ".code_infos[-1] | .code_id")
     ADDR3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
     set -x
-    wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
     wasmd tx wasm execute $ADDR3 "$EXEC_MSG3" --output json --from ibc-3 $FLAG3 -y
     set +x
-
   fi
 
 
@@ -651,16 +600,6 @@ fi
 # trigger command
 if [ $1 = "trigger" ]; then 
   trigger $2
-fi
-
-# execute1 command
-if [ $1 = "e1" ]; then 
-  execute1
-fi
-
-# execute3 command
-if [ $1 = "e3" ]; then 
-  execute3
 fi
 
 # execute command
