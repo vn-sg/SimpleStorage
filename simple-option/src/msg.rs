@@ -32,6 +32,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// GetValue querys value for given key, GetState returns the current state, GetTx returns tx with tx_id
     GetState { },
+    GetStateProgress { },
     GetChannels { },
     GetTest { },
     GetHighestReq { },

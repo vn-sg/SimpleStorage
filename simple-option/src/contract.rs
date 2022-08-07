@@ -392,6 +392,7 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetStateProgress {} => to_binary(&query_state_progress(deps)?),
         QueryMsg::GetChannels {} => to_binary(&query_channels(deps)?),
         QueryMsg::GetTest {} => to_binary(&query_test(deps)?),
         QueryMsg::GetHighestReq {} => to_binary(&query_highest_request(deps)?),
@@ -454,6 +455,11 @@ fn query_state(deps: Deps) -> StdResult<StateResponse> {
         Some(val) => StateResponse::Done { decided_val: val },
         None => StateResponse::InProgress { state },
     })
+}
+
+fn query_state_progress(deps: Deps) -> StdResult<StateResponse> {
+    let state = STATE.load(deps.storage)?;
+    return Ok(StateResponse::InProgress { state });
 }
 
 fn query_test_queue(deps: Deps) -> StdResult<TestQueueResponse> {
