@@ -36,7 +36,7 @@ pub const REQUEST_REPLY_ID: u64 = 100;
 pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
-pub const VIEW_TIMEOUT_SECONDS: u64 = 1;
+pub const VIEW_TIMEOUT_SECONDS: u64 = 10;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -88,6 +88,7 @@ pub fn handle_trigger(
         "key1_diff_val" => trigger_key1_diff_val(deps, env),
         "abort" => trigger_abort(deps, &env),
         "done" => trigger_done(deps, env),
+        "done_2" => trigger_done_2(deps, env),
         _ => Ok(Response::new()
                 .add_attribute("action", "trigger")
                 .add_attribute("trigger_behavior", "unknown"))
@@ -116,6 +117,47 @@ fn trigger_done(
     Ok(res
         .add_messages(msgs))
 }
+
+fn trigger_done_2(
+    deps: DepsMut,
+    env: Env
+) -> Result<Response, ContractError> {
+    let res = 
+    Response::new()
+        .add_attribute("action", "trigger")
+        .add_attribute("trigger_behavior", "done");
+    let state = STATE.load(deps.storage)?;
+
+    let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+    // self-send msg
+    // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
+    let packet_1 = Msg::Done {
+        val: "PACKET_A".to_string()
+    };
+
+    let packet_2 = Msg::Done {
+        val: "PACKET_B".to_string()
+    };
+
+    let channel_id_1 = CHANNELS.load(deps.storage, 1)?;
+    let channel_id_2 = CHANNELS.load(deps.storage, 2)?;
+
+    let mut vec_1:Vec<Msg> = Vec::new();
+    let mut vec_2:Vec<Msg> = Vec::new();
+    vec_1.push(packet_1);
+    vec_2.push(packet_2);
+
+    let packet_queue_1 = PacketMsg::MsgQueue(vec_1);
+    let packet_queue_2 = PacketMsg::MsgQueue(vec_2);
+
+    let ibc_packet_1 = IbcMsg::SendPacket { channel_id: channel_id_1, data: to_binary(&packet_queue_1)?, timeout: get_timeout(&env) };
+    let ibc_packet_2 = IbcMsg::SendPacket { channel_id: channel_id_2, data: to_binary(&packet_queue_2)?, timeout: get_timeout(&env) };
+
+    Ok(res
+        .add_message(ibc_packet_1)
+        .add_message(ibc_packet_2))
+}
+
 
 fn trigger_abort(
     deps: DepsMut,
@@ -286,6 +328,15 @@ pub fn handle_execute_preinput(
 
 pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
+
+
+    match state.done {
+        Some(val) => {
+            return Err(ContractError::CustomError {val: "Process is Done Cannot abort".to_string()});
+        },
+        None => ()
+    };
+
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
