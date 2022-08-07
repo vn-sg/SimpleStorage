@@ -84,7 +84,7 @@ pub fn handle_trigger(
 ) -> Result<Response, ContractError> {
 
     match behavior.as_str() {
-        "multi-propose" => trigger_multi_propose(deps, env),
+        "multi_propose" => trigger_multi_propose(deps, env),
         "key1_diff_val" => trigger_key1_diff_val(deps, env),
         "abort" => trigger_abort(deps, &env),
         "done" => trigger_done(deps, env),
@@ -191,7 +191,7 @@ fn trigger_multi_propose(
     if state.chain_id != state.primary {
         return Ok(Response::new()
         .add_attribute("action", "trigger")
-        .add_attribute("trigger_behavior", "multi-propose")
+        .add_attribute("trigger_behavior", "multi_propose")
         .add_attribute("error", "not primary"));
     }
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());

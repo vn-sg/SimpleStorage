@@ -411,7 +411,7 @@ query() {
 
 trigger() {
   if [ $1 = "prim" ]; then
-    BEHAVIOR='"multi-propose"'
+    BEHAVIOR='"multi_propose"'
   elif [ $1 = "diffkey1" ]; then
     BEHAVIOR='"key1_diff_val"'
   fi

@@ -2,7 +2,7 @@ use cosmwasm_std::{
     StdResult, Order, StdError, Storage, IbcTimeout, Env
 };
 
-use crate::utils::{F, NUMBER_OF_NODES, get_id_channel_pair_from_storage, get_timeout};
+use crate::utils::{F, get_id_channel_pair_from_storage};
 use crate::state::{
     STATE, HIGHEST_ABORT, DEBUG
 };
@@ -13,7 +13,7 @@ use crate::utils::{
 };
 
 use crate::view_change::{
-    view_change, append_queue_view_change
+    append_queue_view_change
 };
 
 use crate::ibc_msg::Msg;
