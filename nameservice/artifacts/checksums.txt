@@ -1,0 +1,1 @@
+f7fa7336d7c9d56672f42640c26b14880e4351f8afe89f44e94675bd344f5cda  cw_nameservice-aarch64.wasm
