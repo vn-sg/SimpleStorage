@@ -204,6 +204,42 @@ deployOne()
     echo "Deployed with code id $code_id on Node 0 Contract Address = $contract_address ibc_port = $ibc_port"
 }
 
+deployns()
+{
+    node=$NODE_0
+    user=$USER
+    keyring=$KEYRING_0
+    init='{"count": 1}'
+    chain='ibc-0'
+    set -e
+    set -x
+    cd ./nameservice/
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cd ..
+
+    file="nameservice/target/wasm32-unknown-unknown/release/cw_nameservice.wasm"
+    wasmd tx wasm store $file --node $node --from $user --chain-id $chain --gas-prices "0.025stake" --gas auto --gas-adjustment 1.5 --broadcast-mode block -y $keyring
+
+    # get code id of deployed contract and
+    # instantiate contract and get address of the instantiated contract
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    wasmd tx wasm instantiate $code_id "$INSTANTIATE_MSG_CHAIN0" --node $node --from $user --chain-id $chain $GAS_FLAG -y --label "nameservice" --no-admin $keyring
+    # wait 2 secs for the contract to be deployed properly
+    sleep 2
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+
+    if [ -z $contract_address ]; then
+        echo "retrying getting contract address...."
+        sleep 2
+        contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    fi
+
+    ibc_port=$(wasmd query wasm contract $contract_address --node $node --output --json | jq -r '.contract_info | .ibc_port_id')
+    set +x
+    echo "Deployed with code id $code_id on Node 0 Contract Address = $contract_address ibc_port = $ibc_port"
+}
+
+
 
 setUV() 
 {
@@ -462,6 +498,33 @@ setKey()
     wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
 }
 
+registerName() 
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    EXEC_MSG="{\"register\": {\"name\": \"$param1\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+}
+
+registerNameTB() 
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    EXEC_MSG="{\"register_trust_boost\": {\"name\": \"$param1\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+}
+
+
+resolveRecord() 
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    QUERY_MSG="{\"resolve_record\": {\"name\": \"$param1\"}}"
+    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
+}
 
 geyKey()
 {
@@ -504,6 +567,9 @@ elif [ $1 = "deploy4" ]; then
     exit 0
 elif [ $1 = "deployOne" ]; then
     deployOne
+    exit 0
+elif [ $1 = "deployns" ]; then
+    deployns
     exit 0
 fi
 
@@ -576,6 +642,12 @@ elif [ $1 = "queryAbort" ]; then
     queryAbort
 elif [ $1 = "triggerDone2" ]; then
     triggerDone2    
+elif [ $1 = "registerName" ]; then
+    registerName
+elif [ $1 = "registerNameTB" ]; then
+    registerNameTB        
+elif [ $1 = "resolveRecord" ]; then
+    resolveRecord        
 else
     echo "unknown method in helper script see"
 fi
