@@ -452,7 +452,7 @@ execute() {
   
   # execute input message
   # EXEC_MSG='{ "set": { "key": "test_key1", "value": "test_value1" } }'
-  if [ $EXE_TYPE = "pre_input" ]; then 
+  if [ $EXE_TYPE = "init" ]; then
     # three random EXEC_msg for testing purposes
     EXEC_MSG0='{ "pre_input": { "value": "PRE_INPUT_CHAIN0"} }'
     EXEC_MSG1='{ "pre_input": { "value": "PRE_INPUT_CHAIN1"} }'
@@ -470,7 +470,7 @@ execute() {
   set +x
 
 
-  if [ $4 -ge "2" ]; then
+  if [ $NUM_CHAINS -ge "2" ]; then
     CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
     ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
     set -x
