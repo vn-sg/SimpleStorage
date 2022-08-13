@@ -57,7 +57,11 @@ mkdir -p $WASMD_DATA && cd $WASMD_DATA && cd ../
 
 echo "Generating rly configurations..."
 rly config init
-rly config add-chains configs/wasmd/3chains/chains
+# rly config add-chains configs/wasmd/3chains/chains
+CHAIN_DIR=configs/wasmd/3chains/chains
+rly chains add -f $CHAIN_DIR/ibc-0.json
+rly chains add -f $CHAIN_DIR/ibc-1.json
+rly chains add -f $CHAIN_DIR/ibc-2.json
 
 SEED0=$(jq -r '.mnemonic' $WASMD_DATA/ibc-0/key_seed.json)
 SEED1=$(jq -r '.mnemonic' $WASMD_DATA/ibc-1/key_seed.json)
@@ -66,7 +70,11 @@ echo "Key $(rly keys restore ibc-0 testkey "$SEED0") imported from ibc-0 to rela
 echo "Key $(rly keys restore ibc-1 testkey "$SEED1") imported from ibc-1 to relayer..."
 echo "Key $(rly keys restore ibc-2 testkey "$SEED2") imported from ibc-2 to relayer..."
 
-rly config add-paths configs/wasmd/3chains/paths
+# PATH_DIR=configs/wasmd/3chains/paths
+# rly config add-paths configs/wasmd/3chains/paths
+rly paths new ibc-0 ibc-1 mypath0-1
+rly paths new ibc-0 ibc-2 mypath0-2
+rly paths new ibc-1 ibc-2 mypath1-2
 
 set +x
 
