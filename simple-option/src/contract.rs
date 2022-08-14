@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg,
+    StdError, StdResult, SubMsg, wasm_execute, WasmMsg,
 };
 
 use std::convert::TryInto;
@@ -21,13 +21,14 @@ use crate::msg::{
     AbortResponse, ChannelsResponse, DoneQueryResponse, EchoQueryResponse, ExecuteMsg,
     HighestAbortResponse, HighestReqResponse, InstantiateMsg, Key1QueryResponse, Key2QueryResponse,
     Key3QueryResponse, LockQueryResponse, QueryMsg, ReceivedSuggestResponse, SendAllUponResponse,
-    StateResponse, TestQueueResponse,
+    StateResponse, TestQueueResponse, ContractExecuteMsg,
 };
 use crate::state::{
     State, CHANNELS, DEBUG, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO,
-    RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST, RECEIVED_DONE, IBC_MSG_SEND_DEBUG,
+    RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST, RECEIVED_DONE, IBC_MSG_SEND_DEBUG, InputType,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
+use serde_json;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -45,7 +46,10 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State::new(msg.chain_id, msg.input, env.block.time);
+    let state = State::new(msg.chain_id, msg.input, deps.api.addr_validate(&msg.contract_addr)?, env.block.time);
+    // let exe_msg = WasmMsg::Execute { contract_addr: , msg: , funds: () };
+    // let exe_msg: ContractExecuteMsg = serde_json::from_str(&msg.msg).unwrap();
+    // let exe_msg = wasm_execute(state.contract_addr.to_string(), &msg.msg, vec![])?;
     STATE.save(deps.storage, &state)?;
     for msg_type in vec!["Suggest", "Proof"] {
         RECEIVED.save(deps.storage, msg_type.to_string(), &HashSet::new())?;
@@ -54,6 +58,7 @@ pub fn instantiate(
 
     // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
     Ok(Response::new()
+        // .add_message(exe_msg)
         .add_attribute("method", "instantiate")
         .add_attribute("owner", info.sender))
 }
@@ -109,7 +114,8 @@ fn trigger_done(
     // self-send msg
     // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
     let done_packet = Msg::Done {
-        val: "MALICIOUS_VAL".to_string()
+        // val: "MALICIOUS_VAL".to_string()
+        val: ContractExecuteMsg::Register { name: "MALICIOUS_VAL".to_string() }
     };
     send_all_party(deps.storage, &mut queue, done_packet, get_timeout(&env), &env)?;
     let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
@@ -132,11 +138,13 @@ fn trigger_done_2(
     // self-send msg
     // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
     let packet_1 = Msg::Done {
-        val: "PACKET_A".to_string()
+        // val: "PACKET_A".to_string()
+        val: ContractExecuteMsg::Register { name: "PACKET_A".to_string() }
     };
 
     let packet_2 = Msg::Done {
-        val: "PACKET_B".to_string()
+        // val: "PACKET_B".to_string()
+        val: ContractExecuteMsg::Register { name: "PACKET_B".to_string() }
     };
 
     let channel_id_1 = CHANNELS.load(deps.storage, 1)?;
@@ -210,6 +218,7 @@ fn trigger_key1_diff_val(
 
     for (chain_id, channel_id) in &channel_ids {
         let val = ["TRIGGER_", &chain_id.to_string()].join("");
+        let val = InputType::generate(val);
         let msg_queue = vec![Msg::Key1 { val, view: state.view }];
         testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
         let packet = PacketMsg::MsgQueue(msg_queue);
@@ -244,6 +253,7 @@ fn trigger_multi_propose(
 
     for (chain_id, channel_id) in &channel_ids {
         let v = ["TRIGGER_", &chain_id.to_string()].join("");
+        let v = InputType::generate(v);
         let msg_queue = vec![Msg::Propose {chain_id: state.chain_id, k: state.view, v, view: state.view}];
         testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
 
@@ -281,7 +291,7 @@ pub fn handle_execute_input(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    input: String,
+    input: InputType,
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
     let timeout: IbcTimeout = get_timeout(&env);
@@ -310,7 +320,7 @@ pub fn handle_execute_preinput(
     deps: DepsMut,
     env: Env,
     _info: MessageInfo,
-    input: String,
+    input: InputType,
 ) -> Result<Response, ContractError> {
     // Initialization
     init_receive_map(deps.storage)?;

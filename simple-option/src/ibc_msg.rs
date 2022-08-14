@@ -2,6 +2,8 @@ use cosmwasm_std::{ContractResult};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::InputType;
+
 /// Messages that will be sent over the IBC channel
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -30,14 +32,14 @@ pub enum Msg {
         chain_id: u32,
         view: u32,
         key2: u32,
-        key2_val: String,
+        key2_val: InputType,
         prev_key2: i32,
         key3: u32,
-        key3_val: String
+        key3_val: InputType
     },
     Proof {
         key1: u32,
-        key1_val: String,
+        key1_val: InputType,
         prev_key1: i32,
         view: u32
     },
@@ -48,32 +50,32 @@ pub enum Msg {
     Propose { 
         chain_id: u32,
         k: u32, 
-        v: String,
+        v: InputType,
         view: u32 
     },
     Echo {
         // chain_id: u32,
-        val: String,
+        val: InputType,
         view: u32
     },
     Key1 {
-        val: String,
+        val: InputType,
         view: u32
     },
     Key2 {
-        val: String,
+        val: InputType,
         view: u32
     },
     Key3 {
-        val: String,
+        val: InputType,
         view: u32
     },
     Lock {
-        val: String,
+        val: InputType,
         view: u32
     },
     Done {
-        val: String
+        val: InputType
     },
 }
 

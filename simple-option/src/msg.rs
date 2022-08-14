@@ -1,25 +1,53 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
-use cosmwasm_std::Timestamp;
+use cosmwasm_std::{Timestamp, to_binary, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{ibc_msg::{Msg}, state::State};
+use crate::{ibc_msg::Msg, state::{State, InputType}};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub chain_id: u32,
-    pub input: String,
+    pub input: InputType,
+    pub contract_addr: String,
+    // pub msg: ContractExecuteMsg
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Input { value: String },
-    PreInput { value: String},
+    Input { value: InputType },
+    PreInput { value: InputType},
     ForceAbort {},
     Abort {},
     Trigger { behavior: String }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum ContractExecuteMsg {
+    Register { name: String },
+    Transfer { name: String, to: String },
+}
+
+impl fmt::Display for ContractExecuteMsg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ContractExecuteMsg::Register { name } => write!(f, "r,{}", name),
+            ContractExecuteMsg::Transfer { name, to } => write!(f, "t,{},{}", name, to),
+        }
+        
+    }
+}
+impl ContractExecuteMsg {
+    pub(crate) fn generate(name: String) -> Self {
+        ContractExecuteMsg::Register { name }
+    }
+//     pub(crate) fn as_bytes(self) -> &'static [u8] {
+//         &to_binary(&self).unwrap()
+//     }
 }
 
 // pub enum Trigger {
@@ -68,7 +96,7 @@ pub enum StateResponse {
         state: State
     },
     Done {
-        decided_val: String
+        decided_val: InputType
     }
 }
 

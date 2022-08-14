@@ -18,6 +18,18 @@
     {
       "type": "object",
       "required": [
+        "get_state_progress"
+      ],
+      "properties": {
+        "get_state_progress": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "get_channels"
       ],
       "properties": {
@@ -190,6 +202,18 @@
       ],
       "properties": {
         "get_debug": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_ibc_debug"
+      ],
+      "properties": {
+        "get_ibc_debug": {
           "type": "object"
         }
       },
