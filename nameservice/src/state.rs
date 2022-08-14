@@ -14,6 +14,7 @@ pub static CONFIG_KEY: &[u8] = b"config";
 pub struct Config {
     pub purchase_price: Option<Coin>,
     pub transfer_price: Option<Coin>,
+    pub trustboost_addr: Option<Addr>,
 }
 
 pub fn config(storage: &mut dyn Storage) -> Singleton<Config> {
