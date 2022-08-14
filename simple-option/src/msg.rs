@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Input { value: String },
+    Input { value: String, target_address: String, validate_function: String, commit_function: String},
     PreInput { value: String},
     ForceAbort {},
     Abort {},

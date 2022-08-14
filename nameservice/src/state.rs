@@ -7,6 +7,9 @@ use cosmwasm_storage::{
     Singleton,
 };
 
+use cw_storage_plus::{Item, Map};
+
+
 pub static NAME_RESOLVER_KEY: &[u8] = b"nameresolver";
 pub static CONFIG_KEY: &[u8] = b"config";
 
@@ -36,3 +39,7 @@ pub fn resolver(storage: &mut dyn Storage) -> Bucket<NameRecord> {
 pub fn resolver_read(storage: &dyn Storage) -> ReadonlyBucket<NameRecord> {
     bucket_read(storage, NAME_RESOLVER_KEY)
 }
+
+pub const tb_resolver: Map<String, NameRecord> = Map::new("test");
+pub const tb_contract_addr: Item<Addr> = Item::new("trustbosst_addr");
+pub const DEBUG: Map<String, bool> = Map::new("DEBUG");

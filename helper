@@ -28,6 +28,7 @@ INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3"}'
 
 target=$2
 param1=$3
+param2=$4
 #node=$(expr 5 + $2)
 #node="http://127.0.0.1:2655$node"
 node="5"
@@ -507,15 +508,23 @@ registerName()
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
-registerNameTB() 
+tbRegisterCommit() 
 {
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    EXEC_MSG="{\"register_trust_boost\": {\"name\": \"$param1\"}}"
+    EXEC_MSG="{\"tb_register_commit\": {\"name\": \"$param1\", \"user\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
+tbResolveRecord() 
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    QUERY_MSG="{\"resolve_tb_record\": {\"name\": \"$param1\"}}"
+    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
+}
 
 resolveRecord() 
 {
@@ -644,8 +653,10 @@ elif [ $1 = "triggerDone2" ]; then
     triggerDone2    
 elif [ $1 = "registerName" ]; then
     registerName
-elif [ $1 = "registerNameTB" ]; then
-    registerNameTB        
+elif [ $1 = "tbRegisterCommit" ]; then
+    tbRegisterCommit        
+elif [ $1 = "tbResolveRecord" ]; then
+    tbResolveRecord        
 elif [ $1 = "resolveRecord" ]; then
     resolveRecord        
 else
