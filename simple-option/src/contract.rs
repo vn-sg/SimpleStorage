@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, wasm_execute, WasmMsg,
+    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Addr, CosmosMsg, SubMsgResult
 };
 
 use std::convert::TryInto;
@@ -28,7 +28,7 @@ use crate::state::{
     RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST, RECEIVED_DONE, IBC_MSG_SEND_DEBUG, InputType,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
-use serde_json;
+use serde_json::{self, Value};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -74,9 +74,9 @@ pub fn execute(
     match msg {
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
         ExecuteMsg::PreInput { value } => handle_execute_preinput(deps, env, info, value),
-        ExecuteMsg::ForceAbort {} => {
-            todo!()
-        }
+        ExecuteMsg::ContractCall {value, contract} => {
+            handle_contract_call(deps, env, info, value, contract)
+        },
         ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
         ExecuteMsg::Trigger { behavior } => handle_trigger(deps, env, behavior),
     }
@@ -115,7 +115,8 @@ fn trigger_done(
     // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
     let done_packet = Msg::Done {
         // val: "MALICIOUS_VAL".to_string()
-        val: ContractExecuteMsg::Register { name: "MALICIOUS_VAL".to_string() }
+        // val: ContractExecuteMsg::Register { name: "MALICIOUS_VAL".to_string() }
+        val: "MALICIOUS_VAL".to_string(),
     };
     send_all_party(deps.storage, &mut queue, done_packet, get_timeout(&env), &env)?;
     let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
@@ -139,12 +140,14 @@ fn trigger_done_2(
     // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
     let packet_1 = Msg::Done {
         // val: "PACKET_A".to_string()
-        val: ContractExecuteMsg::Register { name: "PACKET_A".to_string() }
+        // val: ContractExecuteMsg::Register { name: "PACKET_A".to_string() }
+        val: "TODO_PACKET_A_JSON".to_string()
     };
 
     let packet_2 = Msg::Done {
         // val: "PACKET_B".to_string()
-        val: ContractExecuteMsg::Register { name: "PACKET_B".to_string() }
+        // val: ContractExecuteMsg::Register { name: "PACKET_B".to_string() }
+        val:"TODO_PACKET_A_JSON".to_string()
     };
 
     let channel_id_1 = CHANNELS.load(deps.storage, 1)?;
@@ -218,8 +221,8 @@ fn trigger_key1_diff_val(
 
     for (chain_id, channel_id) in &channel_ids {
         let val = ["TRIGGER_", &chain_id.to_string()].join("");
-        let val = InputType::generate(val);
-        let msg_queue = vec![Msg::Key1 { val, view: state.view }];
+        let val = to_binary(&val)?;
+        let msg_queue = vec![Msg::Key1 { val: val.to_string(), view: state.view }];
         testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
         let packet = PacketMsg::MsgQueue(msg_queue);
     
@@ -253,8 +256,8 @@ fn trigger_multi_propose(
 
     for (chain_id, channel_id) in &channel_ids {
         let v = ["TRIGGER_", &chain_id.to_string()].join("");
-        let v = InputType::generate(v);
-        let msg_queue = vec![Msg::Propose {chain_id: state.chain_id, k: state.view, v, view: state.view}];
+        let v = to_binary(&v)?;
+        let msg_queue = vec![Msg::Propose {chain_id: state.chain_id, k: state.view, v: v.to_string(), view: state.view}];
         testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
 
         let packet = PacketMsg::MsgQueue(msg_queue);
@@ -397,6 +400,24 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
         }
     }
 }
+
+pub fn handle_contract_call(deps: DepsMut,
+    env: Env,
+    _info: MessageInfo,
+    input: InputType,
+    contract: Addr,
+) -> Result<Response, ContractError> {
+    DEBUG.save(deps.storage, 12341, &input)?;
+    let tempo: Value = serde_json::from_str(&input).unwrap();
+    let tempo2 = serde_json::to_string(&tempo).unwrap();
+
+
+    let wasm_msg = wasm_execute(contract, &input, Vec::new())?;
+    //let msg = CosmosMsg::Wasm(wasm_msg);
+    let subMsg = SubMsg::reply_always(wasm_msg, 1234);
+    Ok(Response::new().add_submessage(subMsg))
+}
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -586,12 +607,39 @@ fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
 // entry_point for sub-messages
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
-    match msg.id {
-        // REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
-        REQUEST_REPLY_ID => Ok(Response::new()),
-        SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(&env), msg),
-        id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
+    match (msg.id, msg.result) {
+        (1234, SubMsgResult::Err(err)) => {
+            DEBUG.save(deps.storage, 1234, &err.to_string())?;
+            return Ok(Response::new())
+        },
+        (1234, SubMsgResult::Ok(response)) => {
+            DEBUG.save(deps.storage, 123400, &"SUCCESS".to_string())?;
+            return Ok(Response::new())
+        },
+        _ => {
+            DEBUG.save(deps.storage, 123400, &"NOT_MATCHED".to_string())?;
+            return Ok(Response::new())
+        }
     }
+    // match msg.id {
+    //     // REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
+    //     REQUEST_REPLY_ID => Ok(Response::new()),
+    //     SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(&env), msg),
+    //     1234 => {
+    //         let result = msg.result;
+    //         let is_err =  result.is_err();
+    //         if is_err {
+    //             let response = result.unwrap();
+    //             let events =  response.events;
+    //             response.
+    //             DEBUG.save(deps.storage, 123400, result.);
+    //         } else {
+    //             DEBUG.save(deps.storage, 1234, "OK");
+    //         }
+    //         return Ok(Response::new())
+    //     },
+    //     id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
+    // }
 }
 
 fn handle_suggest_reply(_deps: DepsMut, _timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {

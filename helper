@@ -20,11 +20,12 @@ USER="user"
 INIT_JSON='{"count": 1}'
 INIT_JSON_2='{ "reflect_code_id": 1}'
 
-INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0"}'
-INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1"}'
-INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2"}'
-INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3"}'
+INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
+INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
+INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
+INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
 
+ns_contract=wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d
 
 target=$2
 param1=$3
@@ -503,6 +504,7 @@ registerName()
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    contract_address=$ns_contract
     EXEC_MSG="{\"register\": {\"name\": \"$param1\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
@@ -516,12 +518,22 @@ registerNameTB()
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
+contractCall() 
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    EXEC_MSG="{\"contract_call\": {\"value\": \"$param1\", \"contract\": \"$ns_contract\"}}"
+    #EXEC_MSG='{"contract_call": {"value": "{"register": {"name": "tb_test"}}", "contract": "wasm1ufs3tlq4umljk0qfe8k5ya0x6hpavn897u2cnf9k0en9jr7qarqq3zkt9t"}}'
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+}
 
 resolveRecord() 
 {
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    contract_address=$ns_contract
     QUERY_MSG="{\"resolve_record\": {\"name\": \"$param1\"}}"
     wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
 }
@@ -648,6 +660,8 @@ elif [ $1 = "registerNameTB" ]; then
     registerNameTB        
 elif [ $1 = "resolveRecord" ]; then
     resolveRecord        
+elif [ $1 = "contractCall" ]; then
+    contractCall
 else
     echo "unknown method in helper script see"
 fi

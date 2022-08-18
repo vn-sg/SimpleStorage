@@ -5,10 +5,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cw_storage_plus::{Item, Map};
+use serde_json::Value;
 
 use crate::{ibc_msg::Msg, msg::ContractExecuteMsg};
 
-pub type InputType = ContractExecuteMsg;
+pub type InputType = String;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {

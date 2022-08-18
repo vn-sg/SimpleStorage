@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt};
 
-use cosmwasm_std::{Timestamp, to_binary, Binary};
+use cosmwasm_std::{Timestamp, to_binary, Binary, Addr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +19,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Input { value: InputType },
     PreInput { value: InputType},
-    ForceAbort {},
+    ContractCall { value: InputType, contract: Addr },
     Abort {},
     Trigger { behavior: String }
 }
