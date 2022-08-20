@@ -13,6 +13,17 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Register { name: String },
     Transfer { name: String, to: String },
+    RegisterTrustBoost { detail: RegisterTrustBoostDetail, signature: String},
+    RegisterTrustBoost2 { name: String, user: String, signature: String},
+
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct RegisterTrustBoostDetail {
+    name: String, 
+    user: String
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
