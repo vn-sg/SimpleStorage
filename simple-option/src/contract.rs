@@ -21,14 +21,16 @@ use crate::msg::{
     AbortResponse, ChannelsResponse, DoneQueryResponse, EchoQueryResponse, ExecuteMsg,
     HighestAbortResponse, HighestReqResponse, InstantiateMsg, Key1QueryResponse, Key2QueryResponse,
     Key3QueryResponse, LockQueryResponse, QueryMsg, ReceivedSuggestResponse, SendAllUponResponse,
-    StateResponse, TestQueueResponse, ContractExecuteMsg,
+    StateResponse, TestQueueResponse, ContractExecuteMsg, temp, Register, MyStruct
 };
 use crate::state::{
     State, CHANNELS, DEBUG, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO,
     RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST, RECEIVED_DONE, IBC_MSG_SEND_DEBUG, InputType,
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
-use serde_json::{self, Value};
+// use serde_json::{self, Value};
+use serde;
+use serde_json::{self};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -114,9 +116,8 @@ fn trigger_done(
     // self-send msg
     // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
     let done_packet = Msg::Done {
-        // val: "MALICIOUS_VAL".to_string()
+        val: "MALICIOUS_VAL".to_string()
         // val: ContractExecuteMsg::Register { name: "MALICIOUS_VAL".to_string() }
-        val: "MALICIOUS_VAL".to_string(),
     };
     send_all_party(deps.storage, &mut queue, done_packet, get_timeout(&env), &env)?;
     let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
@@ -139,15 +140,13 @@ fn trigger_done_2(
     // self-send msg
     // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
     let packet_1 = Msg::Done {
-        // val: "PACKET_A".to_string()
+        val: "PACKET_A".to_string()
         // val: ContractExecuteMsg::Register { name: "PACKET_A".to_string() }
-        val: "TODO_PACKET_A_JSON".to_string()
     };
 
     let packet_2 = Msg::Done {
-        // val: "PACKET_B".to_string()
+        val: "PACKET_B".to_string(),
         // val: ContractExecuteMsg::Register { name: "PACKET_B".to_string() }
-        val:"TODO_PACKET_A_JSON".to_string()
     };
 
     let channel_id_1 = CHANNELS.load(deps.storage, 1)?;
@@ -221,8 +220,8 @@ fn trigger_key1_diff_val(
 
     for (chain_id, channel_id) in &channel_ids {
         let val = ["TRIGGER_", &chain_id.to_string()].join("");
-        let val = to_binary(&val)?;
-        let msg_queue = vec![Msg::Key1 { val: val.to_string(), view: state.view }];
+        //let val = to_binary(&val)?;
+        let msg_queue = vec![Msg::Key1 { val: val, view: state.view }];
         testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
         let packet = PacketMsg::MsgQueue(msg_queue);
     
@@ -256,8 +255,7 @@ fn trigger_multi_propose(
 
     for (chain_id, channel_id) in &channel_ids {
         let v = ["TRIGGER_", &chain_id.to_string()].join("");
-        let v = to_binary(&v)?;
-        let msg_queue = vec![Msg::Propose {chain_id: state.chain_id, k: state.view, v: v.to_string(), view: state.view}];
+        let msg_queue = vec![Msg::Propose {chain_id: state.chain_id, k: state.view, v: v, view: state.view}];
         testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
 
         let packet = PacketMsg::MsgQueue(msg_queue);
@@ -407,15 +405,31 @@ pub fn handle_contract_call(deps: DepsMut,
     input: InputType,
     contract: Addr,
 ) -> Result<Response, ContractError> {
-    DEBUG.save(deps.storage, 12341, &input)?;
-    let tempo: Value = serde_json::from_str(&input).unwrap();
-    let tempo2 = serde_json::to_string(&tempo).unwrap();
+    // let tempo: Value = serde_json::from_str(&input).unwrap();
+    // let tempo2 = serde_json::to_string(&tempo).unwrap();
+
+    // '{"register": {"name": "hello_tb3"}}'
+    // let address = contract.into_string();
 
 
-    let wasm_msg = wasm_execute(contract, &input, Vec::new())?;
+    // let exec_msg = "{\"register\": {\"name\": \"hello_world_string\"}}";     // Error "{\"register\": {\"name\": \"hello_world_string\"}}"
+    // let exec_msg = ContractExecuteMsg::Register { name: "hello_tb_struct_2".into() }; //Working {"register":{"name":"hello_tb_struct"}} 
+
+    //let exec_msg = Binary(input);
+    // let exec_msg = input;
+    let wasm_msg = WasmMsg::Execute{
+        contract_addr: contract.to_string(),
+        msg: Binary::from_base64(&input)?,
+        funds: vec![]
+    };
+    
+    //DEBUG.save(deps.storage, 12342, &address)?;
+
+    //DEBUG.save(deps.storage, 12341, exec_msg.to_string())?;
+
     //let msg = CosmosMsg::Wasm(wasm_msg);
-    let subMsg = SubMsg::reply_always(wasm_msg, 1234);
-    Ok(Response::new().add_submessage(subMsg))
+    let sub_msg = SubMsg::reply_always(wasm_msg, 1234);
+    Ok(Response::new().add_submessage(sub_msg))
 }
 
 

@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt};
 
 use cosmwasm_std::{Timestamp, to_binary, Binary, Addr};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, ser::SerializeStruct};
 
 use crate::{ibc_msg::Msg, state::{State, InputType}};
 
@@ -167,4 +167,43 @@ pub struct DebugResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct HighestAbortResponse {
     pub highest_abort: Vec<(u32, i32)>
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Register {
+    pub(crate) name: String,
+}
+
+pub struct temp {
+    pub value: String,
+}
+
+
+pub struct MyStruct {
+    pub value: String,
+}
+
+impl Serialize for MyStruct {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+            let mut state = serializer.serialize_struct("Color", 3)?;
+            state.serialize_field("r", "testR")?;
+            state.serialize_field("g", "testG")?;
+            state.serialize_field("b", "testB")?;
+            state.end()
+    }
+}
+
+pub struct RawSerializedBytes {
+    pub value : Vec<u8>
+}
+
+impl Serialize for RawSerializedBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        todo!()
+    }
 }
