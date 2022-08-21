@@ -1,7 +1,7 @@
 [package]
-name = "simple-option"
-version = "0.0.1"
-authors = ["v"]
+name = "simplestorage"
+version = "0.1.0"
+authors = ["hianant2 <sdgs72>"]
 edition = "2018"
 
 exclude = [
@@ -47,10 +47,6 @@ cw2 = "0.13.2"
 schemars = "0.8.8"
 serde = { version = "1.0.137", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
-serde_json = "1.0.83"
-sha2 = { version = "0.9.9", default-features = false }
-ripemd = "0.1.1"
-bech32 = "0.9.0"
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"

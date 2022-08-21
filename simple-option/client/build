@@ -1,5 +1,6 @@
 #!/bin/bash 
 
 #cargo clean
-cargo build
-mv ./target/debug/trustboost-client .
+# cargo build
+cargo build --release --target=wasm32-unknown-unknown
+mv ./target/wasm32-unknown-unknown/release/trustboost-client .

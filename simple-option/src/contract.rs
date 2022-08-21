@@ -2,8 +2,10 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Addr, CosmosMsg, SubMsgResult
+    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Addr, CosmosMsg, SubMsgResult, ExternalApi, Api
 };
+use ripemd160::Ripemd160;
+use sha2::Sha256;
 
 use std::convert::TryInto;
 
@@ -73,15 +75,32 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let api = ExternalApi::new();
+    let canon = api.addr_canonicalize(&info.sender.to_string())?;
+    let human_readable = api.addr_humanize(&canon)?;
+    DEBUG.save(deps.storage, 7171, &human_readable.to_string())?;
+
+    let address = info.sender;
+
+
+    //api.secp256k1_verify(message_hash, signature, public_key);
+
     match msg {
         ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
         ExecuteMsg::PreInput { value } => handle_execute_preinput(deps, env, info, value),
-        ExecuteMsg::ContractCall {value, contract} => {
+        ExecuteMsg::ContractCall {value, contract, signature} => {
             handle_contract_call(deps, env, info, value, contract)
         },
         ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
         ExecuteMsg::Trigger { behavior } => handle_trigger(deps, env, behavior),
     }
+}
+
+
+fn from() {
+    //let mut bytes = [0u8; LENGTH];
+    //bytes.copy_from_slice(&ripemd_digest[..LENGTH]);
+    //Id(bytes)
 }
 
 pub fn handle_trigger(

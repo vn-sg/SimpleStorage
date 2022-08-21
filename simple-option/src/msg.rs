@@ -19,7 +19,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Input { value: InputType },
     PreInput { value: InputType},
-    ContractCall { value: InputType, contract: Addr },
+    ContractCall { value: InputType, contract: Addr, signature: String},
     Abort {},
     Trigger { behavior: String }
 }

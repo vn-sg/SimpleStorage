@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, ExternalApi, Api
 };
 
 use crate::coin_helpers::assert_sent_sufficient_coin;
@@ -34,6 +34,8 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let ext_api = ExternalApi::new();
+    ext_api.debug("KEKW DEBUGGING INSIDE CHAIN");
     match msg {
         ExecuteMsg::Register{name} => execute_register(deps,env,info,name),
         ExecuteMsg::Transfer{name,to} => execute_transfer(deps,env,info,name,to),

@@ -7,7 +7,9 @@ use serde_json::Value;
 use std::env;
 use std::env::args;
 use cosmwasm_std::{
-    to_binary, Binary};
+    to_binary, Binary, Api, ExternalApi, ExternalQuerier, Querier
+};
+
 
 #[derive(Serialize, Deserialize)]
 pub struct Person {
@@ -68,7 +70,18 @@ impl Serialize for MyStruct {
     }
 }
 
-fn main() {
+fn main () {
+    let args: Vec<String> = env::args().collect();
+    let param = &args[1];
+    println!("First Param {}", param);
+    let ex = ExternalApi::new();
+    //ex.addr_validate(human);
+    let querier = ExternalQuerier::new();
+    querier.raw_query(bin_request)
+
+}
+
+fn main2() {
 
     let args: Vec<String> = env::args().collect();
     let param = &args[1];
