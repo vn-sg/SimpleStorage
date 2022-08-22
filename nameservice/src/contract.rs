@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, 
+    MessageInfo, Response, StdError, StdResult, Addr,
 };
 
 use crate::coin_helpers::assert_sent_sufficient_coin;
@@ -37,6 +38,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::Register { name } => execute_register(deps, env, info, name),
         ExecuteMsg::Transfer { name, to } => execute_transfer(deps, env, info, name, to),
+        ExecuteMsg::RegisterTrustBoost { name } => execute_trustboost(deps, env, info, name),
     }
 }
 
@@ -90,6 +92,23 @@ pub fn execute_transfer(
         }
     })?;
     Ok(Response::default())
+}
+
+pub fn execute_trustboost(deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    name: String,
+) -> Result<Response, ContractError> {
+    if info.sender != Addr::unchecked("EXAMPLE_TRUSTBOOST_ADDR") {
+       // return Err(ContractError::Unauthorized {});
+    }
+
+    let custom_info = MessageInfo{
+        sender: Addr::unchecked("USER_A_ADDR_FROM_MSG"),
+        funds: info.funds,
+    };
+
+    execute_register(deps, _env, custom_info, name)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
