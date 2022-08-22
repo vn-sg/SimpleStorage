@@ -67,7 +67,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Input { value } => handle_execute_input(deps, env, info, value),
+        ExecuteMsg::Input { value, target_address, validate_function, commit_function } => handle_execute_input(deps, env, info, value, 
+            target_address, validate_function, commit_function),
         ExecuteMsg::PreInput { value } => handle_execute_preinput(deps, env, info, value),
         ExecuteMsg::ForceAbort {} => {
             todo!()
@@ -282,6 +283,9 @@ pub fn handle_execute_input(
     env: Env,
     _info: MessageInfo,
     input: String,
+    target_address: String,
+    validate_function: String,
+    commit_function: String
 ) -> Result<Response, ContractError> {
     // set timeout for broadcasting
     let timeout: IbcTimeout = get_timeout(&env);

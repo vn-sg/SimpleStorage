@@ -1,11 +1,12 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Addr, Storage
 };
 
 use crate::coin_helpers::assert_sent_sufficient_coin;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ResolveRecordResponse};
-use crate::state::{config, config_read, resolver, resolver_read, Config, NameRecord};
+use crate::state::{config, config_read, resolver, resolver_read, 
+                    Config, NameRecord, tb_resolver, tb_contract_addr, DEBUG};
 
 const MIN_NAME_LENGTH: u64 = 3;
 const MAX_NAME_LENGTH: u64 = 64;
@@ -37,6 +38,8 @@ pub fn execute(
     match msg {
         ExecuteMsg::Register { name } => execute_register(deps, env, info, name),
         ExecuteMsg::Transfer { name, to } => execute_transfer(deps, env, info, name, to),
+        ExecuteMsg::TbRegisterOk { name, user } => execute_tb_register_ok(deps.storage, env, info, name, user),
+        ExecuteMsg::TbRegisterCommit { name, user } => execute_tb_register_commit(deps, env, info, name, user)
     }
 }
 
@@ -97,6 +100,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::ResolveRecord { name } => query_resolver(deps, env, name),
         QueryMsg::Config {} => to_binary(&config_read(deps.storage).load()?),
+        QueryMsg::ResolveTbRecord { name } => {
+            let result = tb_resolver.load(deps.storage, name.clone())?;
+            to_binary(&result)
+        }
+        QueryMsg::Debug { name } => {
+            let result = DEBUG.load(deps.storage, name.clone())?;
+            to_binary(&result)
+        }
+
     }
 }
 
@@ -141,4 +153,45 @@ fn validate_name(name: &str) -> Result<(), ContractError> {
             }
         }
     }
+}
+
+pub fn execute_tb_register_ok(
+    storage: &mut dyn Storage,
+    _env: Env,
+    info: MessageInfo,
+    name: String,
+    user: Addr,
+) -> Result<Response, ContractError> {
+    validate_name(&name)?;
+
+    // Use global state
+    if tb_resolver.load(storage, name.clone()).is_ok() {
+        DEBUG.save(storage, name.clone(), &false)?;
+        return Err(ContractError::NameTaken { name: name.clone() });
+    }
+
+    Ok(Response::default())
+}
+
+pub fn execute_tb_register_commit(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    name: String,
+    user: Addr,
+) -> Result<Response, ContractError> {
+
+    // Check TB address
+    // if(info.sender == tb_contract_addr.load(deps.storage)) {
+    //  return Err(ContractError::Unauthorized {});
+    // }
+
+    execute_tb_register_ok(deps.storage, env, info, name.clone(), user.clone())?;
+
+    // Update global state
+    let record = NameRecord { owner: user };
+    tb_resolver.save(deps.storage, name.clone(), &record)?;
+    DEBUG.save(deps.storage, name.clone(), &true)?;
+
+    Ok(Response::default())
 }
