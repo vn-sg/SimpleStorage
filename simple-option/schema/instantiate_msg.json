@@ -4,6 +4,7 @@
   "type": "object",
   "required": [
     "chain_id",
+    "contract_addr",
     "input"
   ],
   "properties": {
@@ -11,6 +12,9 @@
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
+    },
+    "contract_addr": {
+      "type": "string"
     },
     "input": {
       "type": "string"

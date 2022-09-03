@@ -1,12 +1,12 @@
 
 use cosmwasm_std::{
-    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env
+    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env, wasm_execute
 };
 
 use std::collections::HashSet;
 use std::convert::TryInto;
 
-use crate::state::RECEIVED_DONE;
+use crate::state::{RECEIVED_DONE, InputType};
 use crate::utils::{get_id_channel_pair_from_storage, 
     F, get_chain_id};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
@@ -23,7 +23,7 @@ fn handle_propose(
     _local_channel_id: Option<String>,
     chain_id: u32,
     k: u32, 
-    v: String,
+    v: InputType,
     view: u32 ,
     env: &Env
 ) -> StdResult<()> {
@@ -117,10 +117,10 @@ fn handle_suggest(
     chain_id: u32,
     view: u32,
     key2: u32,
-    key2_val: String,
+    key2_val: InputType,
     prev_key2: i32,
     key3: u32,
-    key3_val: String,
+    key3_val: InputType,
     env: &Env
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
@@ -207,7 +207,7 @@ fn handle_proof(
     store: &mut dyn Storage,
     local_channel_id: Option<String>,
     key1: u32,
-    key1_val: String,
+    key1_val: InputType,
     prev_key1: i32,
     view: u32,
     _env: &Env
@@ -247,7 +247,7 @@ fn handle_echo(
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
-    val: String,
+    val: InputType,
     view: u32,
     env: &Env
 ) -> StdResult<()> {
@@ -274,7 +274,7 @@ fn handle_key1(
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
-    val: String,
+    val: InputType,
     view: u32,
     env: &Env
 ) -> StdResult<()> {
@@ -301,7 +301,7 @@ fn handle_key2(
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
-    val: String,
+    val: InputType,
     view: u32,
     env: &Env
 ) -> StdResult<()> {
@@ -322,7 +322,7 @@ fn handle_key3(
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
-    val: String,
+    val: InputType,
     view: u32,
     env: &Env
 ) -> StdResult<()> {
@@ -343,7 +343,7 @@ fn handle_lock(
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
-    val: String,
+    val: InputType,
     view: u32,
     env: &Env
 ) -> StdResult<()> {        
@@ -366,7 +366,7 @@ fn handle_done(
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
-    val: String,
+    val: InputType,
     env: &Env
 ) -> StdResult<()> {   
     let state = STATE.load(store)?;
@@ -409,6 +409,9 @@ pub fn receive_queue(
     env: &Env,
 ) -> StdResult<IbcReceiveResponse> {
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+    if let Some(_) = STATE.load(store)?.done {
+        return Ok(IbcReceiveResponse::new())
+    }
     for msg in queue_to_process {
         // TODO skip...
         // let key = msg.name().to_string();
@@ -457,6 +460,19 @@ pub fn receive_queue(
         
         // unwrap the result to handle any errors
         result?
+    }
+
+    // Execute if decided
+    let state = STATE.load(store)?;
+    if let Some(val) = state.done {
+        let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;
+        let exe_msg = wasm_execute(state.contract_addr.to_string(), &val, vec![])?;
+        return Ok(
+            IbcReceiveResponse::new()
+                .add_message(exe_msg)
+                .set_ack(acknowledgement)
+                .add_attribute("action", "receive_msg_queue")
+        );
     }
 
     match local_channel_id {
@@ -532,7 +548,7 @@ pub fn receive_queue(
 }
 
 
-fn accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool {
+fn accept_key(key: u32, value: InputType, proofs: Vec<(u32, InputType, i32)>) -> bool {
     let mut supporting = 0;
     for (k, v, pk) in proofs {
         if (key as i32) < pk {
@@ -548,7 +564,7 @@ fn accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool 
 }
 
 
-fn open_lock(store: &mut dyn Storage, proofs: Vec<(u32, String, i32)>) -> StdResult<bool> {
+fn open_lock(store: &mut dyn Storage, proofs: Vec<(u32, InputType, i32)>) -> StdResult<bool> {
     let mut supporting: u32 = 0;
     let state = STATE.load(store)?;
     for (k, v, pk) in proofs {
@@ -567,7 +583,7 @@ fn open_lock(store: &mut dyn Storage, proofs: Vec<(u32, String, i32)>) -> StdRes
 
 fn message_transfer_hop(
     storage: &mut dyn Storage, 
-    val: String, 
+    val: InputType, 
     view: u32,
     queue: &mut Vec<Vec<Msg>>, 
     message_type: cw_storage_plus::Map<String, HashSet<u32>>, 
@@ -590,16 +606,16 @@ fn message_transfer_hop(
             None => state.chain_id,
         };
         // Initialize local record of messages of type key
-        let action = |count: Option<HashSet<u32>>| -> StdResult<HashSet<u32>> {
-            match count {
+        let action = |set: Option<HashSet<u32>>| -> StdResult<HashSet<u32>> {
+            match set {
                 Some(set) => Ok(set),
                 None => Ok(HashSet::new()),
             }
         };
-        let mut set = message_type.update(storage, val.clone(), action)?;
+        let mut set = message_type.update(storage, val.to_string(), action)?;
         if !set.contains(&chain_id) {
             set.insert(chain_id);
-            message_type.save(storage, val.clone(), &set)?;
+            message_type.save(storage, val.to_string(), &set)?;
 
             // If received Done, operate accordingly
             if message_type.namespace() == "received_done".as_bytes() {

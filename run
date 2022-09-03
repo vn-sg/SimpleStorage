@@ -56,31 +56,76 @@ start_rly4() {
   fg
 }
 
-upload_and_instantiate1() {
+ns() {
+  NODE=$1
+  CHAIN=$2
+  OP=$3
+  TARGET=$4
+
+  # read code_id from config file 
+  NS_CODE_ID=$(<code_id)
+  # echo ns id: $NS_CODE_ID
+  # fetch address of the smart contract using the code_id
+  ADDR=$(wasmd query wasm list-contract-by-code $NS_CODE_ID --node $NODE --output json | jq -r '.contracts[-1]')
+  if [ $OP = "register" ]; then
+    EXEC_MSG='{"register":{"name":"'$TARGET'"}}'
+    set -x
+    wasmd tx wasm execute $ADDR "$EXEC_MSG" --output json --from ibc-0 --node $NODE --chain-id $CHAIN $BASE_FLAG -y
+    set +x
+  fi
+
+  exit 0
+}
+
+upload_nameservice() {
+  NUM_CHAINS=$1
   # First compile the smart contract into optimal file size
-  cd simple-option && RUSTFLAGS='-C link-arg=-s' cargo wasm && cd ..
-  export CONTRACT_PATH=simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm
+  export CONTRACT_PATH=nameservice/artifacts/cw_nameservice.wasm
   
   set +x
 
-  echo "Uploading $CONTRACT_NAME smart contract to all three blockchains..."
+  echo "Uploading $CONTRACT_NAME smart contract to all $NUM_CHAINS blockchains..."
   ## CHAIN 0
   RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-0 $FLAG0 -y --output json)
   CODE_ID_CHAIN0=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+  echo $CODE_ID_CHAIN0 > code_id
   echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-0, code_id: $CODE_ID_CHAIN0"
-  ## CHAIN 1
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-1 $FLAG1 -y --output json)
-  CODE_ID_CHAIN1=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-1, code_id: $CODE_ID_CHAIN1"
 
-  # Instantiate the smart contracts
-  echo "Instantiating smart contracts..."
+  echo "Instantiating smart contracts on chain ibc-0..."
+  # INSTANTIATE_MSG_CHAIN0='{"purchase_price":{"amount":"100","denom":"upebble"},"transfer_price":{"amount":"999","denom":"upebble"}}'
+  # Set the purchase_price and transfer_price to be nonexistent
+  INSTANTIATE_MSG_CHAIN0='{"purchase_price": null,"transfer_price": null}'
+  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "name_service_ibc_0" $FLAG0 -y --no-admin > /dev/null
+  if [ $NUM_CHAINS -ge "2" ]; then
+    ## CHAIN 1
+    RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-1 $FLAG1 -y --output json)
+    CODE_ID_CHAIN1=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+    echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-1, code_id: $CODE_ID_CHAIN1"
 
-  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": "0"}'
-  INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": "1"}'
+    echo "Instantiating smart contracts on chain ibc-1..."
+    INSTANTIATE_MSG_CHAIN1='{"purchase_price": null,"transfer_price": null}'
+    wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "name_service_ibc_1" $FLAG1 -y --no-admin > /dev/null
+  fi
+  if [ $NUM_CHAINS -ge "3" ]; then
+    ## CHAIN 2
+    RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-2 $FLAG2 -y --output json)
+    CODE_ID_CHAIN2=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+    echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-2, code_id: $CODE_ID_CHAIN2"
 
-  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
+    echo "Instantiating smart contracts on chain ibc-2..."
+    INSTANTIATE_MSG_CHAIN2='{"purchase_price": null,"transfer_price": null}'
+    wasmd tx wasm instantiate $CODE_ID_CHAIN2 "$INSTANTIATE_MSG_CHAIN2" --from ibc-2 --label "name_service_ibc_2" $FLAG2 -y --no-admin > /dev/null
+  fi
+  if [ $NUM_CHAINS -ge "4" ]; then
+    ## CHAIN 3
+    RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-3 $FLAG3 -y --output json)
+    CODE_ID_CHAIN3=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+    echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-3, code_id: $CODE_ID_CHAIN3"
+
+    echo "Instantiating smart contracts on chain ibc-3..."
+    INSTANTIATE_MSG_CHAIN3='{"purchase_price": null,"transfer_price": null}'
+    wasmd tx wasm instantiate $CODE_ID_CHAIN3 "$INSTANTIATE_MSG_CHAIN3" --from ibc-3 --label "name_service_ibc_3" $FLAG3 -y --no-admin > /dev/null
+  fi
 
   echo "Instantiation completed!"
 
@@ -88,13 +133,23 @@ upload_and_instantiate1() {
 
   # get addr of our smart contracts
   ADDR_CHAIN0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-
   echo "contract ADDR on CHAIN0: $ADDR_CHAIN0"
-  echo "contract ADDR on CHAIN1: $ADDR_CHAIN1"
-
   IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  if [ $NUM_CHAINS -ge "2" ]; then
+    ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+    echo "contract ADDR on CHAIN1: $ADDR_CHAIN1"
+    IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  fi
+  if [ $NUM_CHAINS -ge "3" ]; then
+    ADDR_CHAIN2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    echo "contract ADDR on CHAIN2: $ADDR_CHAIN2"
+    IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  fi
+  if [ $NUM_CHAINS -ge "4" ]; then
+    ADDR_CHAIN3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+    echo "contract ADDR on CHAIN3: $ADDR_CHAIN3"
+    IBCPORT_3=$(wasmd query wasm contract $ADDR_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  fi
 
   echo "Completed!"
 
@@ -102,44 +157,70 @@ upload_and_instantiate1() {
 
 }
 
-upload_and_instantiate3() {
-
+upload_and_instantiate() {
+  NUM_CHAINS=$1
   # First compile the smart contract into optimal file size
   cd simple-option && RUSTFLAGS='-C link-arg=-s' cargo wasm && cd ..
+  # cd simple-option && cargo wasm && cd ..
   export CONTRACT_PATH=simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm
-
-  echo "Terminating all existing Relayers..."
-  # killall rly &> /dev/null | true
   
-  set +x
-
-  echo "Uploading $CONTRACT_NAME smart contract to all three blockchains..."
-  ## CHAIN 0
+  echo "Uploading $CONTRACT_NAME smart contract to all $NUM_CHAINS blockchains..."
+  set -x
+  # Retrieve the lastest contract code_id to run TrustBoost on..
+  NAMESERVICE_CODE_ID=$(<code_id)
+  # fetch address of the smart contract using the code_id
+  NAMESERVICE_ADDR0=$(wasmd query wasm list-contract-by-code $NAMESERVICE_CODE_ID --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
+  
+  ## upload to CHAIN 0
   RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-0 $FLAG0 -y --output json)
   CODE_ID_CHAIN0=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
   echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-0, code_id: $CODE_ID_CHAIN0"
-  ## CHAIN 1
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-1 $FLAG1 -y --output json)
-  CODE_ID_CHAIN1=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-1, code_id: $CODE_ID_CHAIN1"
-  ## CHAIN 2
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-2 $FLAG2 -y --output json)
-  CODE_ID_CHAIN2=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-2, code_id: $CODE_ID_CHAIN2"
 
-  # Instantiate the smart contracts
-  echo "Instantiating smart contracts..."
+  echo "Instantiating smart contracts on chain ibc-0..."
+  INPUT0='{"register": {"name": "test0"} }'
+  INPUT1='{"register": {"name": "test1"} }'
+  INPUT2='{"register": {"name": "test2"} }'
+  INPUT3='{"register": {"name": "test3"} }'
+  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": '$INPUT0',"contract_addr": "'$NAMESERVICE_ADDR0'"}'
+  set -x
+  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
+  set +x
+  if [ $NUM_CHAINS -ge "2" ]; then
+    ## CHAIN 1
+    RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-1 $FLAG1 -y --output json)
+    CODE_ID_CHAIN1=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+    echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-1, code_id: $CODE_ID_CHAIN1"
 
+    echo "Instantiating smart contracts on chain ibc-1..."
+    NAMESERVICE_ADDR1=$(wasmd query wasm list-contract-by-code $NAMESERVICE_CODE_ID --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+    INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": '$INPUT1',"contract_addr": "'$NAMESERVICE_ADDR1'"}'
+    wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
+  fi
+  if [ $NUM_CHAINS -ge "3" ]; then
+    ## CHAIN 2
+    RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-2 $FLAG2 -y --output json)
+    CODE_ID_CHAIN2=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+    echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-2, code_id: $CODE_ID_CHAIN2"
+
+    echo "Instantiating smart contracts on chain ibc-2..."
+    NAMESERVICE_ADDR2=$(wasmd query wasm list-contract-by-code $NAMESERVICE_CODE_ID --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    INSTANTIATE_MSG_CHAIN2='{"chain_id": 2,"input": '$INPUT2',"contract_addr": "'$NAMESERVICE_ADDR2'"}'
+    wasmd tx wasm instantiate $CODE_ID_CHAIN2 "$INSTANTIATE_MSG_CHAIN2" --from ibc-2 --label "simple_storage" $FLAG2 -y --no-admin > /dev/null
+  fi
+  if [ $NUM_CHAINS -ge "4" ]; then
+    ## CHAIN 3
+    RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-3 $FLAG3 -y --output json)
+    CODE_ID_CHAIN3=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
+    echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-3, code_id: $CODE_ID_CHAIN3"
+
+    echo "Instantiating smart contracts on chain ibc-3..."
+    NAMESERVICE_ADDR3=$(wasmd query wasm list-contract-by-code $NAMESERVICE_CODE_ID --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+    INSTANTIATE_MSG_CHAIN3='{"chain_id": 3,"input": '$INPUT3',"contract_addr": "'$NAMESERVICE_ADDR3'"}'
+    wasmd tx wasm instantiate $CODE_ID_CHAIN3 "$INSTANTIATE_MSG_CHAIN3" --from ibc-3 --label "simple_storage" $FLAG3 -y --no-admin > /dev/null
+  fi
+  
   # INSTANTIATE_MSG_LEADER='{"role": "leader"}'
   # INSTANTIATE_MSG_FOLLOWER='{"role": "follower"}'
-  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": "0"}'
-  INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": "1"}'
-  INSTANTIATE_MSG_CHAIN2='{"chain_id": 2,"input": "2"}'
-  INSTANTIATE_MSG_CHAIN3='{"chain_id": 3,"input": "3"}'
-
-  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN2 "$INSTANTIATE_MSG_CHAIN2" --from ibc-2 --label "simple_storage" $FLAG2 -y --no-admin > /dev/null
 
   echo "Instantiation completed!"
 
@@ -147,99 +228,23 @@ upload_and_instantiate3() {
 
   # get addr of our smart contracts
   ADDR_CHAIN0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
-
   echo "contract ADDR on CHAIN0: $ADDR_CHAIN0"
-  echo "contract ADDR on CHAIN1: $ADDR_CHAIN1"
-  echo "contract ADDR on CHAIN2: $ADDR_CHAIN2"
-
-
-
   IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-
-  ### Guess: the addr of the same smart contract is going to be the same across all blockchains ###
-  # IBCPORT_0=$(wasmd query wasm contract $ADDR --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  # IBCPORT_1=$(wasmd query wasm contract $ADDR --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  # IBCPORT_2=$(wasmd query wasm contract $ADDR --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-
-  echo "Completed!"
-
-  exit 0
-
-}
-
-upload_and_instantiate4() {
-
-  # First compile the smart contract into optimal file size
-  cd simple-option && RUSTFLAGS='-C link-arg=-s' cargo wasm && cd ..
-  export CONTRACT_PATH=simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm
-
-  echo "Terminating all existing Relayers..."
-  # killall rly &> /dev/null | true
-
-  echo "Uploading $CONTRACT_NAME smart contract to all 4 blockchains..."
-  ## CHAIN 0
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-0 $FLAG0 -y --output json)
-  CODE_ID_CHAIN0=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-0, code_id: $CODE_ID_CHAIN0"
-  ## CHAIN 1
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-1 $FLAG1 -y --output json)
-  CODE_ID_CHAIN1=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-1, code_id: $CODE_ID_CHAIN1"
-  ## CHAIN 2
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-2 $FLAG2 -y --output json)
-  CODE_ID_CHAIN2=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-2, code_id: $CODE_ID_CHAIN2"
-  ## CHAIN 3
-  RES=$(wasmd tx wasm store $CONTRACT_PATH --from ibc-3 $FLAG3 -y --output json)
-  CODE_ID_CHAIN3=$(echo $RES | jq -r '.logs[0].events[-1].attributes[-1].value')
-  echo "Successfully uploaded $CONTRACT_NAME to blockchain ibc-3, code_id: $CODE_ID_CHAIN3"
-
-  # Instantiate the smart contracts
-  echo "Instantiating smart contracts..."
-
-
-  INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": "0"}'
-  INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": "1"}'
-  INSTANTIATE_MSG_CHAIN2='{"chain_id": 2,"input": "2"}'
-  INSTANTIATE_MSG_CHAIN3='{"chain_id": 3,"input": "3"}'
-
-  set -x
-
-  wasmd tx wasm instantiate $CODE_ID_CHAIN0 "$INSTANTIATE_MSG_CHAIN0" --from ibc-0 --label "simple_storage" $FLAG0 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN1 "$INSTANTIATE_MSG_CHAIN1" --from ibc-1 --label "simple_storage" $FLAG1 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN2 "$INSTANTIATE_MSG_CHAIN2" --from ibc-2 --label "simple_storage" $FLAG2 -y --no-admin > /dev/null
-  wasmd tx wasm instantiate $CODE_ID_CHAIN3 "$INSTANTIATE_MSG_CHAIN3" --from ibc-3 --label "simple_storage" $FLAG3 -y --no-admin > /dev/null
-
-  echo "Instantiation completed!"
-
-  set +x
-
-  # get addr of our smart contracts
-  ADDR_CHAIN0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
-
-  echo "contract ADDR on CHAIN0: $ADDR_CHAIN0"
-  echo "contract ADDR on CHAIN1: $ADDR_CHAIN1"
-  echo "contract ADDR on CHAIN2: $ADDR_CHAIN2"
-  echo "contract ADDR on CHAIN3: $ADDR_CHAIN3"
-
-
-
-  IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_3=$(wasmd query wasm contract $ADDR_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-
-  ### Guess: the addr of the same smart contract is going to be the same across all blockchains ###
-  # IBCPORT_0=$(wasmd query wasm contract $ADDR --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  # IBCPORT_1=$(wasmd query wasm contract $ADDR --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  # IBCPORT_2=$(wasmd query wasm contract $ADDR --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  if [ $NUM_CHAINS -ge "2" ]; then
+    ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+    echo "contract ADDR on CHAIN1: $ADDR_CHAIN1"
+    IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  fi
+  if [ $NUM_CHAINS -ge "3" ]; then
+    ADDR_CHAIN2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    echo "contract ADDR on CHAIN2: $ADDR_CHAIN2"
+    IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  fi
+  if [ $NUM_CHAINS -ge "4" ]; then
+    ADDR_CHAIN3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+    echo "contract ADDR on CHAIN3: $ADDR_CHAIN3"
+    IBCPORT_3=$(wasmd query wasm contract $ADDR_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+  fi
 
   echo "Completed!"
 
@@ -270,28 +275,39 @@ ibc_link1() {
   exit 0
 }
 
-ibc_link3() {
+ibc_link() {
+  NUM_CHAINS=$1
   # Retrieve the lastest code_id
   CODE_ID_CHAIN0=$(wasmd query wasm list-code --node $CHAIN_0_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-  CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
-
   # fetch address of the smart contract using the code_id
   ADDR_CHAIN0=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
-  ADDR_CHAIN2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
-
   # fetching ibc ports on each chain
   IBCPORT_0=$(wasmd query wasm contract $ADDR_CHAIN0 --node $CHAIN_0_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
-  
+
+  if [ $NUM_CHAINS -ge "2" ]; then
+    # Retrieve the lastest code_id
+    CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    # fetch address of the smart contract using the code_id
+    ADDR_CHAIN1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+    IBCPORT_1=$(wasmd query wasm contract $ADDR_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+    # Link the ibc ports (blockchain0->blockchain1, blockchain0->blockchain2)
+    rly tx link mypath0-1 --src-port $IBCPORT_0 --dst-port $IBCPORT_1
+  fi
+  if [ $NUM_CHAINS -ge "3" ]; then
+    # Retrieve the lastest code_id
+    CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
+    # fetch address of the smart contract using the code_id
+    ADDR_CHAIN2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    IBCPORT_2=$(wasmd query wasm contract $ADDR_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contract_info | .ibc_port_id')
+    rly tx link mypath0-2 --src-port $IBCPORT_0 --dst-port $IBCPORT_2
+    rly tx link mypath1-2 --src-port $IBCPORT_1 --dst-port $IBCPORT_2
+  fi
+  # if [ $NUM_CHAINS -ge "4" ]; then
+    
+  # fi
+
   set -x
 
-  # Link the ibc ports (blockchain0->blockchain1, blockchain0->blockchain2)
-  rly tx link mypath0-1 --src-port $IBCPORT_0 --dst-port $IBCPORT_1
-  rly tx link mypath0-2 --src-port $IBCPORT_0 --dst-port $IBCPORT_2
-  rly tx link mypath1-2 --src-port $IBCPORT_1 --dst-port $IBCPORT_2
 
   exit 0
 }
@@ -339,6 +355,8 @@ query() {
   CHAIN=$2
   if [ $3 = "state" ]; then
     QUERY_MSG='{"get_state": {}}' 
+  elif [ $3 = "ns" ]; then
+    QUERY_MSG='{"resolve_record": {"name": "'$4'"}}'
   elif [ $3 = "echo" ]; then
     QUERY_MSG='{"get_echo": {}}' 
   elif [ $3 = "key1" ]; then
@@ -398,7 +416,11 @@ query() {
   fi
  
   # Retrieve the lastest code_id
-  CODE_ID=$(wasmd query wasm list-code --node $NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  if [ $3 = "ns" ]; then
+    CODE_ID=$(<code_id)
+  else
+    CODE_ID=$(wasmd query wasm list-code --node $NODE --output json | jq -r ".code_infos[-1] | .code_id")
+  fi
   # fetch address of the smart contract using the code_id
   ADDR=$(wasmd query wasm list-contract-by-code $CODE_ID --node $NODE --output json | jq -r '.contracts[-1]')
   # query current state
@@ -459,10 +481,14 @@ execute() {
     EXEC_MSG2='{ "pre_input": { "value": "PRE_INPUT_CHAIN2"} }'
     EXEC_MSG3='{ "pre_input": { "value": "PRE_INPUT_CHAIN3"} }'
   else
-    EXEC_MSG0='{ "input": { "value": "INPUT_CHAIN0"} }'
-    EXEC_MSG1='{ "input": { "value": "INPUT_CHAIN1"} }'
-    EXEC_MSG2='{ "input": { "value": "INPUT_CHAIN2"} }'
-    EXEC_MSG3='{ "input": { "value": "INPUT_CHAIN3"} }'
+    # EXEC_MSG0='{ "input": { "value": "INPUT_CHAIN0"} }'
+    # EXEC_MSG1='{ "input": { "value": "INPUT_CHAIN1"} }'
+    # EXEC_MSG2='{ "input": { "value": "INPUT_CHAIN2"} }'
+    # EXEC_MSG3='{ "input": { "value": "INPUT_CHAIN3"} }'
+    EXEC_MSG0='{ "input": { "value": {"register": {"name": "test0"} } } }'
+    EXEC_MSG1='{ "input": { "value": {"register": {"name": "test1"} } } }'
+    EXEC_MSG2='{ "input": { "value": {"register": {"name": "test2"} } } }'
+    EXEC_MSG3='{ "input": { "value": {"register": {"name": "test3"} } } }'
   fi
 
   set -x
@@ -473,6 +499,7 @@ execute() {
   if [ $NUM_CHAINS -ge "2" ]; then
     CODE_ID_CHAIN1=$(wasmd query wasm list-code --node $CHAIN_1_NODE --output json | jq -r ".code_infos[-1] | .code_id")
     ADDR1=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN1 --node $CHAIN_1_NODE --output json | jq -r '.contracts[-1]')
+    sleep 1
     set -x
     wasmd tx wasm execute $ADDR1 "$EXEC_MSG1" --output json --from ibc-1 $FLAG1 -y
     set +x
@@ -480,6 +507,7 @@ execute() {
   if [ $NUM_CHAINS -ge "3" ]; then 
     CODE_ID_CHAIN2=$(wasmd query wasm list-code --node $CHAIN_2_NODE --output json | jq -r ".code_infos[-1] | .code_id")
     ADDR2=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN2 --node $CHAIN_2_NODE --output json | jq -r '.contracts[-1]')
+    sleep 1
     set -x
     wasmd tx wasm execute $ADDR2 "$EXEC_MSG2" --output json --from ibc-2 $FLAG2 -y
     set +x
@@ -487,6 +515,7 @@ execute() {
   if [ $NUM_CHAINS -ge "4" ]; then 
     CODE_ID_CHAIN3=$(wasmd query wasm list-code --node $CHAIN_3_NODE --output json | jq -r ".code_infos[-1] | .code_id")
     ADDR3=$(wasmd query wasm list-contract-by-code $CODE_ID_CHAIN3 --node $CHAIN_3_NODE --output json | jq -r '.contracts[-1]')
+    sleep 1
     set -x
     wasmd tx wasm execute $ADDR3 "$EXEC_MSG3" --output json --from ibc-3 $FLAG3 -y
     set +x
@@ -552,19 +581,57 @@ killall() {
   exit 0
 }
 
-# upload to 2 chains command
-if [ $1 = "u1" ]; then 
-  upload_and_instantiate1
+# upload to chains command
+if [ $1 = "u" ]; then 
+  if [ -z "$2" ]; then
+    echo "Unknown upload configuration: "
+    echo "Usage: ./run u [CONFIGURATION] "
+    echo "Example: ./run u 4 "
+    exit 1
+  fi
+  # upload NameService command
+  if [ $2 = "ns" ]; then
+    if [ -z "$3" ]; then
+      echo "Unknown NameService configuration: "
+      echo "Usage: ./run u ns [CONFIGURATION] "
+      echo "Example: ./run u ns 4 "
+      exit 1
+    fi
+    upload_nameservice $3
+  fi
+  upload_and_instantiate $2
 fi
+# upload NameService command
+# if [ $1 = "ns" ]; then 
+#   upload_nameservice $2
+# fi
 
-# upload to 3 chains command
-if [ $1 = "u3" ]; then 
-  upload_and_instantiate3
-fi
-
-# upload to 4 chains command
-if [ $1 = "u4" ]; then 
-  upload_and_instantiate4
+# nameService Ops
+if [ $1 = "n" ]; then 
+  if [ -z "$2" ]; then
+    echo "Unknown nameService blockchain: "
+    echo "Usage: ./run n [BLOCKCHAIN_NAME] [OP] [target]"
+    echo "Example: ./run n 0 register bob"
+    exit 1
+  fi
+  if [ -z "$3" ]; then
+    echo "Unknown nameService op: "
+    echo "Usage: ./run n [BLOCKCHAIN_NAME] [OP] [target]"
+    echo "Example: ./run n 0 register bob"
+    exit 1
+  fi
+  if [ $2 = "0" ]; then 
+    ns $CHAIN_0_NODE "ibc-$2" $3 $4
+  fi
+  if [ $2 = "1" ]; then 
+    ns $CHAIN_1_NODE "ibc-$2" $3 $4
+  fi
+  if [ $2 = "2" ]; then 
+    ns $CHAIN_2_NODE "ibc-$2" $3 $4
+  fi
+  if [ $2 = "3" ]; then 
+    ns $CHAIN_3_NODE "ibc-$2" $3 $4
+  fi
 fi
 
 # start the relayer for 1 link
@@ -580,6 +647,17 @@ fi
 # start the relayer for 4 chains
 if [ $1 = "rly4" ]; then 
   start_rly4
+fi
+
+# IBC link command
+if [ $1 = "link" ]; then 
+  if [ -z "$2" ]; then
+    echo "Unknown link No. of chains: "
+    echo "Usage: ./run link [NUM_CHAINS]"
+    echo "Example: ./run link 3"
+    exit 1
+  fi
+  ibc_link $2
 fi
 
 # TESTING: only link one path, ibc link1 command

@@ -1,13 +1,14 @@
 use std::collections::{HashSet};
 
-use cosmwasm_std::{IbcMsg, Timestamp, SubMsg};
+use cosmwasm_std::{IbcMsg, Timestamp, SubMsg, Addr, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cw_storage_plus::{Item, Map};
 
-use crate::ibc_msg::Msg;
+use crate::{ibc_msg::Msg, msg::ContractExecuteMsg};
 
+pub type InputType = ContractExecuteMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -22,32 +23,33 @@ pub struct State {
     pub key2: u32,
     pub key3: u32,
     pub lock: u32,
-    pub key1_val: String,
-    pub key2_val: String,
-    pub key3_val: String,
-    pub lock_val: String,
+    pub key1_val: InputType,
+    pub key2_val: InputType,
+    pub key3_val: InputType,
+    pub lock_val: InputType,
 
     pub prev_key1: i32,
     pub prev_key2: i32,
 
-    pub suggestions: Vec<(u32, String)>,
-    pub key2_proofs: Vec<(u32, String, i32)>,
-    pub proofs: Vec<(u32, String, i32)>,
+    pub suggestions: Vec<(u32, InputType)>,
+    pub key2_proofs: Vec<(u32, InputType, i32)>,
+    pub proofs: Vec<(u32, InputType, i32)>,
     pub received_propose: bool,
     // pub is_first_req_ack: bool,
     // pub sent_suggest: bool,
     // pub sent_done: bool,
     pub sent: HashSet<String>,
-    pub done: Option<String>,
+    pub done: Option<InputType>,
     pub start_time: Timestamp,
+    pub contract_addr: Addr
 }
 
 impl State {
     // Another associated function, taking two arguments:
-    pub(crate) fn new(chain_id: u32, input: String, start_time: Timestamp) -> Self {
+    pub(crate) fn new(chain_id: u32, input: InputType, contract_addr: Addr, start_time: Timestamp) -> Self {
         Self {
             n: 1,
-            chain_id: chain_id,
+            chain_id,
             channel_ids: Vec::new(),
             current_tx_id: 0,
             view: 0,
@@ -71,10 +73,11 @@ impl State {
             // sent_done: false,
             sent: HashSet::new(),
             done: None,
-            start_time: start_time,
+            start_time,
+            contract_addr
         }
     }
-    pub(crate) fn re_init(&mut self, input: String, start_time: Timestamp) -> () {
+    pub(crate) fn re_init(&mut self, input: InputType, start_time: Timestamp) -> () {
         self.sent = HashSet::new();
         self.done = None;
         self.view = 0;

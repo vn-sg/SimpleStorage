@@ -12,7 +12,7 @@ use crate::ibc_msg::{
 };
 
 use crate::state::{
-    CHANNELS, STATE, HIGHEST_ABORT, IBC_MSG_SEND_DEBUG,
+    CHANNELS, STATE, HIGHEST_ABORT, IBC_MSG_SEND_DEBUG, InputType,
 };
 use crate::utils::{get_timeout, F};
 use crate::queue_handler::{receive_queue};
@@ -449,7 +449,7 @@ fn _accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool
 //         .add_attribute("chain_id", chain_id.to_string()))
 // }
 
-fn _open_lock(deps: &DepsMut, proofs: Vec<(u32, String, i32)>) -> StdResult<bool> {
+fn _open_lock(deps: &DepsMut, proofs: Vec<(u32, InputType, i32)>) -> StdResult<bool> {
     let mut supporting: u32 = 0;
     let state = STATE.load(deps.storage)?;
     for (k, v, pk) in proofs {
@@ -575,6 +575,8 @@ pub fn receive_propose(
 }
 */
 
+/* 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -595,6 +597,7 @@ mod tests {
             // role: "leader".to_string(),
             chain_id: 0,
             input: 0.to_string(),
+            contract_addr: 0.to_string()
         };
         let info = mock_info("creator_V", &coins(100, "BTC"));
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -619,3 +622,5 @@ mod tests {
         assert_eq!(1, res.messages.len());
     }
 }
+
+*/
