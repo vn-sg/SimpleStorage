@@ -20,6 +20,7 @@ pub fn instantiate(
     let config_state = Config {
         purchase_price: msg.purchase_price,
         transfer_price: msg.transfer_price,
+        trustboost_addr: msg.trustboost_addr,
     };
 
     config(deps.storage).save(&config_state)?;
@@ -34,9 +35,36 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    match msg {
-        ExecuteMsg::Register { name } => execute_register(deps, env, info, name),
-        ExecuteMsg::Transfer { name, to } => execute_transfer(deps, env, info, name, to),
+    let config_state = config(deps.storage).load()?;
+    match msg {        
+        ExecuteMsg::Register { name, user_via_tb} => {
+            if config_state.trustboost_addr.is_some() {
+                if config_state.trustboost_addr.unwrap() != info.sender {
+                    return Err(ContractError::Unauthorized {});
+                }
+                let new_info = MessageInfo {
+                    sender: user_via_tb,
+                    funds: info.funds,
+                };
+                return execute_register(deps, env, new_info, name);
+            } else {
+                return execute_register(deps, env, info, name);
+            }
+        }
+        ExecuteMsg::Transfer { name, to, user_via_tb } => {
+            if config_state.trustboost_addr.is_some() {
+                if config_state.trustboost_addr.unwrap() != info.sender {
+                    return Err(ContractError::Unauthorized {});
+                }
+                let new_info = MessageInfo {
+                    sender: user_via_tb,
+                    funds: info.funds,
+                };
+                return execute_transfer(deps, env, new_info, name, to);
+            } else {
+                return execute_transfer(deps, env, info, name, to);
+            }
+        }
     }
 }
 
