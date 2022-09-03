@@ -35,10 +35,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Register{name} => execute_register(deps,env,info,name),
+        ExecuteMsg::Register{name, user} => execute_register(deps,env,info,name),
         ExecuteMsg::Transfer{name,to} => execute_transfer(deps,env,info,name,to),
-        ExecuteMsg::RegisterTrustBoost { detail, signature } => todo!(),
-        ExecuteMsg::RegisterTrustBoost2 { name, user, signature } => todo!(),
      }
 }
 

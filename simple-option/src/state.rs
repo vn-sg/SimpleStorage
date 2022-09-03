@@ -8,7 +8,7 @@ use cw_storage_plus::{Item, Map};
 
 use crate::{ibc_msg::Msg, msg::ContractExecuteMsg};
 
-pub type InputType = String;
+pub type InputType = InputState;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -114,6 +114,23 @@ impl State {
 
 }
 
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InputState {
+    pub binary_msg: String,
+    pub signature: String,
+    pub pub_key: String,
+}
+
+impl InputState {
+    pub(crate) fn get_malicous() -> Self {
+        InputState {
+            binary_msg: "MALICIOUS".to_string(),
+            signature: "SIGNATURE".to_string(),
+            pub_key: "PUBLIC_KEY".to_string(),
+        }
+    }
+}
 
 pub const STATE: Item<State> = Item::new("state");
 pub const CHANNELS: Map<u32, String> = Map::new("channels");

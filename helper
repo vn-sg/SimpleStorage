@@ -20,12 +20,12 @@ USER="user"
 INIT_JSON='{"count": 1}'
 INIT_JSON_2='{ "reflect_code_id": 1}'
 
-INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3","contract_addr":"wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
+INSTANTIATE_MSG_CHAIN0='{"role": "follower","chain_id": 0,"input": "0","contract_addr":"wasm1evd3q4d3sh76alsjstysyu8z0v8hcvcflv5wqa87pjn6nq3r368qxnnqtz"}'
+INSTANTIATE_MSG_CHAIN1='{"role": "follower","chain_id": 1,"input": "1","contract_addr":"wasm1evd3q4d3sh76alsjstysyu8z0v8hcvcflv5wqa87pjn6nq3r368qxnnqtz"}'
+INSTANTIATE_MSG_CHAIN2='{"role": "follower","chain_id": 2,"input": "2","contract_addr":"wasm1evd3q4d3sh76alsjstysyu8z0v8hcvcflv5wqa87pjn6nq3r368qxnnqtz"}'
+INSTANTIATE_MSG_CHAIN3='{"role": "follower","chain_id": 3,"input": "3","contract_addr":"wasm1evd3q4d3sh76alsjstysyu8z0v8hcvcflv5wqa87pjn6nq3r368qxnnqtz"}'
 
-ns_contract=wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d
+ns_contract=wasm1evd3q4d3sh76alsjstysyu8z0v8hcvcflv5wqa87pjn6nq3r368qxnnqtz
 
 target=$2
 param1=$3
