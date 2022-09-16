@@ -1,14 +1,35 @@
-use std::collections::{HashSet};
+use std::collections::{HashSet, hash_map::DefaultHasher};
+use std::hash::{Hash, Hasher};
 
-use cosmwasm_std::{IbcMsg, Timestamp, SubMsg, Addr, Binary};
+
+use cosmwasm_std::{IbcMsg, Timestamp, SubMsg, Addr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item, Map, PrimaryKey, Key};
 
-use crate::{ibc_msg::Msg, msg::ContractExecuteMsg};
+use crate::{ibc_msg::Msg};
 
-pub type InputType = ContractExecuteMsg;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Hash)]
+#[serde(rename_all = "snake_case")]
+pub struct TBInput {
+    pub binary: String,
+    pub public_key: String,
+    pub signature: Vec<u8>,
+}
+
+impl TBInput {
+
+    pub fn calculate_hash(self) -> u64 {
+        let mut s = DefaultHasher::new();
+        self.hash(&mut s);
+        s.finish()
+    }
+}
+
+
+pub type InputType = TBInput;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -127,14 +148,12 @@ pub const SEND_ALL_UPON: Map<u32, Vec<Msg>> = Map::new("send_all_upon");
 pub const RECEIVED: Map<String, HashSet<u32>> = Map::new("received");
 // pub const RECEIVED_SUGGEST: Map<String, HashSet<u32>> = Map::new("received_suggest");
 // pub const RECEIVED_PROOF: Map<String, HashSet<u32>> = Map::new("received_proof");
-pub const RECEIVED_ECHO: Map<String, HashSet<u32>> = Map::new("received_echo");
-pub const RECEIVED_KEY1: Map<String, HashSet<u32>> = Map::new("received_key1");
-pub const RECEIVED_KEY2: Map<String, HashSet<u32>> = Map::new("received_key2");
-pub const RECEIVED_KEY3: Map<String, HashSet<u32>> = Map::new("received_key3");
-pub const RECEIVED_LOCK: Map<String, HashSet<u32>> = Map::new("received_lock");
-pub const RECEIVED_DONE: Map<String, HashSet<u32>> = Map::new("received_done");
-// pub const LOCK: Map<String, u32> = Map::new("lock");
-// pub const DONE: Map<String, u32> = Map::new("done");
+pub const RECEIVED_ECHO: Map<u64, HashSet<u32>> = Map::new("received_echo");
+pub const RECEIVED_KEY1: Map<u64, HashSet<u32>> = Map::new("received_key1");
+pub const RECEIVED_KEY2: Map<u64, HashSet<u32>> = Map::new("received_key2");
+pub const RECEIVED_KEY3: Map<u64, HashSet<u32>> = Map::new("received_key3");
+pub const RECEIVED_LOCK: Map<u64, HashSet<u32>> = Map::new("received_lock");
+pub const RECEIVED_DONE: Map<u64, HashSet<u32>> = Map::new("received_done");
 
 
 //// TESTING.. ////
@@ -142,6 +161,9 @@ pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
 pub const TEST_QUEUE: Map<u32, Vec<(u32, Vec<Msg>)> > = Map::new("test_queue");
 pub const DEBUG: Map<u32, String> = Map::new("debug");
 pub const IBC_MSG_SEND_DEBUG: Map<String, Vec<SubMsg>> = Map::new("ibc_msg_send_debug");
+pub const DEBUG_CTR: Item<u32> = Item::new("DEBUG_CTR");
+pub const DEBUG_RECEIVE_MSG: Map<String, Vec<String>> = Map::new("DEBUG_RECEIVE_MSG");
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Test {

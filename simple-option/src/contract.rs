@@ -24,11 +24,12 @@ use crate::msg::{
     StateResponse, TestQueueResponse, ContractExecuteMsg,
 };
 use crate::state::{
-    State, CHANNELS, DEBUG, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO,
+    State, CHANNELS, DEBUG, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO, DEBUG_CTR,
     RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, STATE, TEST, RECEIVED_DONE, IBC_MSG_SEND_DEBUG, InputType,
+    DEBUG_RECEIVE_MSG
 };
 use crate::state::{SEND_ALL_UPON, TEST_QUEUE};
-use serde_json;
+use crate::malicious_trigger::{trigger_done, trigger_done_2, trigger_abort, trigger_key1_diff_val, trigger_multi_propose};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:simple-storage";
@@ -55,6 +56,8 @@ pub fn instantiate(
         RECEIVED.save(deps.storage, msg_type.to_string(), &HashSet::new())?;
     }
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    DEBUG_CTR.save(deps.storage, &0)?;
 
     // let action = |_| -> StdResult<u32> { Ok(u32::MAX) };
     Ok(Response::new()
@@ -100,193 +103,6 @@ pub fn handle_trigger(
     }
 }
 
-fn trigger_done(
-    deps: DepsMut,
-    env: Env
-) -> Result<Response, ContractError> {
-    let res = 
-    Response::new()
-        .add_attribute("action", "trigger")
-        .add_attribute("trigger_behavior", "done");
-    let state = STATE.load(deps.storage)?;
-
-    let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-    // self-send msg
-    // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
-    let done_packet = Msg::Done {
-        // val: "MALICIOUS_VAL".to_string()
-        val: ContractExecuteMsg::Register { name: "MALICIOUS_VAL".to_string() }
-    };
-    send_all_party(deps.storage, &mut queue, done_packet, get_timeout(&env), &env)?;
-    let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
-
-    Ok(res
-        .add_messages(msgs))
-}
-
-fn trigger_done_2(
-    deps: DepsMut,
-    env: Env
-) -> Result<Response, ContractError> {
-    let res = 
-    Response::new()
-        .add_attribute("action", "trigger")
-        .add_attribute("trigger_behavior", "done");
-    let state = STATE.load(deps.storage)?;
-
-    let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-    // self-send msg
-    // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
-    let packet_1 = Msg::Done {
-        // val: "PACKET_A".to_string()
-        val: ContractExecuteMsg::Register { name: "PACKET_A".to_string() }
-    };
-
-    let packet_2 = Msg::Done {
-        // val: "PACKET_B".to_string()
-        val: ContractExecuteMsg::Register { name: "PACKET_B".to_string() }
-    };
-
-    let channel_id_1 = CHANNELS.load(deps.storage, 1)?;
-    let channel_id_2 = CHANNELS.load(deps.storage, 2)?;
-
-    let mut vec_1:Vec<Msg> = Vec::new();
-    let mut vec_2:Vec<Msg> = Vec::new();
-    vec_1.push(packet_1);
-    vec_2.push(packet_2);
-
-    let packet_queue_1 = PacketMsg::MsgQueue(vec_1);
-    let packet_queue_2 = PacketMsg::MsgQueue(vec_2);
-
-    let ibc_packet_1 = IbcMsg::SendPacket { channel_id: channel_id_1, data: to_binary(&packet_queue_1)?, timeout: get_timeout(&env) };
-    let ibc_packet_2 = IbcMsg::SendPacket { channel_id: channel_id_2, data: to_binary(&packet_queue_2)?, timeout: get_timeout(&env) };
-
-    Ok(res
-        .add_message(ibc_packet_1)
-        .add_message(ibc_packet_2))
-}
-
-
-fn trigger_abort(
-    deps: DepsMut,
-    env: &Env
-) -> Result<Response, ContractError> {
-    let res = 
-    Response::new()
-        .add_attribute("action", "trigger")
-        .add_attribute("trigger_behavior", "abort");
-    let state = STATE.load(deps.storage)?;
-
-    if state.chain_id == state.primary {
-        return Ok(res
-        .add_attribute("error", "is primary"));
-    }
-    // let mut msgs = Vec::new();
-    let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-    // self-send msg
-    // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
-    let abort_packet = Msg::Abort {
-        view: state.view,
-        chain_id: state.chain_id,
-    };
-    send_all_party(deps.storage, &mut queue, abort_packet, get_timeout(&env), env)?;
-    let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
-
-    Ok(res
-        .add_messages(msgs))
-}
-
-fn trigger_key1_diff_val(
-    deps: DepsMut,
-    env: Env
-) -> Result<Response, ContractError> {
-    let res = 
-        Response::new()
-            .add_attribute("action", "trigger");
-    let state = STATE.load(deps.storage)?;
-    
-    if state.chain_id == state.primary {
-        return Ok(res
-        .add_attribute("trigger_behavior", "key1_diff_val")
-        .add_attribute("error", "is primary"));
-    }
-    let mut msgs = Vec::new();
-    // self-send msg
-    // receive_queue(store, timeout, None, vec![packet.clone()], queue)?;
-
-    let channel_ids = get_id_channel_pair_from_storage(deps.storage)?;
-
-    for (chain_id, channel_id) in &channel_ids {
-        let val = ["TRIGGER_", &chain_id.to_string()].join("");
-        let val = InputType::generate(val);
-        let msg_queue = vec![Msg::Key1 { val, view: state.view }];
-        testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
-        let packet = PacketMsg::MsgQueue(msg_queue);
-    
-        let msg = convert_send_ibc_msg(channel_id.to_string(), packet, get_timeout(&env));
-        msgs.push(msg);
-    }
-
-    return Ok(res
-    .add_messages(msgs)
-    .add_attribute("trigger_behavior", "key1_diff_val"));
-}
-
-fn trigger_multi_propose(
-    deps: DepsMut,
-    env: Env
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-
-    // check if this chain is the primary of current view
-    if state.chain_id != state.primary {
-        return Ok(Response::new()
-        .add_attribute("action", "trigger")
-        .add_attribute("trigger_behavior", "multi_propose")
-        .add_attribute("error", "not primary"));
-    }
-    // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-    let mut msgs = Vec::new();
-
-    // Send different Propose to other parties
-    let channel_ids = get_id_channel_pair_from_storage(deps.storage)?;
-
-    for (chain_id, channel_id) in &channel_ids {
-        let v = ["TRIGGER_", &chain_id.to_string()].join("");
-        let v = InputType::generate(v);
-        let msg_queue = vec![Msg::Propose {chain_id: state.chain_id, k: state.view, v, view: state.view}];
-        testing_add2queue(deps.storage, *chain_id, msg_queue.clone())?;
-
-        let packet = PacketMsg::MsgQueue(msg_queue);
-        let msg = convert_send_ibc_msg(channel_id.to_string(), packet, get_timeout(&env));
-        msgs.push(msg);
-    }
-    /* 
-    for k in 0..3 {
-        let v = ["TESTING", &k.to_string()].join("");
-        let propose_packet = Msg::Propose {
-            chain_id: state.chain_id,
-            k,
-            v,
-            view: state.view,
-        };
-        
-        send_all_party(deps.storage, &mut queue, propose_packet, get_timeout(&env))?;
-    }
-    let msgs = convert_queue_to_ibc_msgs(deps.storage, &mut queue, get_timeout(&env))?;
-    */
-    let mut state = STATE.load(deps.storage)?;
-    state.current_tx_id += 1;
-    STATE.save(deps.storage, &state)?;
-
-    return Ok(Response::new()
-    .add_messages(msgs)
-    .add_attribute("action", "trigger")
-    .add_attribute("trigger_behavior", "multi-propose"));
-}
-
-
-
 pub fn handle_execute_input(
     deps: DepsMut,
     env: Env,
@@ -313,7 +129,6 @@ pub fn handle_execute_input(
     // By calling view_change(), Request messages will be delivered to all chains that we established a channel with
     view_change(deps.storage, timeout.clone(), &env)
 
-    // broadcast message
 }
 
 pub fn handle_execute_preinput(
@@ -368,20 +183,6 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
 
             let sub_msgs = response.messages;
 
-            // let state = STATE.load(deps.storage)?;
-            // if previous_view != state.view {
-            //     let t = format!("STATE IS NOT EQUAL PREVIOUS_VIEW = {} STATE.VIEW = {}", previous_view, state.view);
-            //     DEBUG.save(deps.storage, 100, &t)?;
-            //     reset_view_specific_maps(deps.storage)?;
-            //     view_change(deps, get_timeout(&env))
-            // } else {
-            //     let t = format!("STATE IS STILL EQUAL EQUAL PREVIOUS_VIEW = {} STATE.VIEW = {}", previous_view, state.view);
-            //     DEBUG.save(deps.storage, 200, &t)?;
-            //     Ok(Response::new()
-            //         .add_attribute("action", "execute")
-            //         .add_attribute("msg_type", "abort"))
-            // }
-
             IBC_MSG_SEND_DEBUG.save(deps.storage, "ABORT".to_string(), &sub_msgs)?;
             Ok(Response::new()
                 .add_attribute("action", "execute")
@@ -419,6 +220,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetDebug {} => to_binary(&query_debug(deps)?),
         QueryMsg::GetHighestAbort {} => to_binary(&query_highest_abort(deps)?),
         QueryMsg::GetIbcDebug {} => to_binary(&query_ibc_debug(deps)?),
+        QueryMsg::GetDebugReceive{} => to_binary(&query_debug_receive(deps)?),
      }
 }
 
@@ -568,6 +370,13 @@ fn query_debug(deps: Deps) -> StdResult<Vec<(u32, String)>> {
 
 fn query_ibc_debug(deps: Deps) -> StdResult<Vec<(String, Vec<SubMsg>)>> {
     let test: StdResult<Vec<_>> = IBC_MSG_SEND_DEBUG
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    Ok(test?)
+}
+
+fn query_debug_receive(deps: Deps) -> StdResult<Vec<(String, Vec<String>)>> {
+    let test: StdResult<Vec<_>> = DEBUG_RECEIVE_MSG
         .range(deps.storage, None, None, Order::Ascending)
         .collect();
     Ok(test?)

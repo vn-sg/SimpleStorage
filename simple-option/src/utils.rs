@@ -103,7 +103,7 @@ fn reset_aborts(store: &mut dyn Storage) -> StdResult<()> {
     Ok(())
 }
 
-fn delete_map(store: &mut dyn Storage, map: Map<String, HashSet<u32>>)  -> StdResult<()> {
+fn delete_map(store: &mut dyn Storage, map: Map<u64, HashSet<u32>>)  -> StdResult<()> {
     let vals: StdResult<Vec<_>> = map
         .keys(store, None, None, Order::Ascending)
         .collect();

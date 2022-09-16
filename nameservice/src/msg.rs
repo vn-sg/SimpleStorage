@@ -1,4 +1,4 @@
-use cosmwasm_std::Coin;
+use cosmwasm_std::{Coin, Addr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub purchase_price: Option<Coin>,
     pub transfer_price: Option<Coin>,
+    pub trustboost_addr: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -13,6 +14,8 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Register { name: String },
     Transfer { name: String, to: String },
+    RegisterTB {name : String, tb_user: String},
+    UpdateTBAddress {address: String}
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -1,5 +1,7 @@
+use std::ops::Add;
+
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Addr
 };
 
 use crate::coin_helpers::assert_sent_sufficient_coin;
@@ -20,6 +22,7 @@ pub fn instantiate(
     let config_state = Config {
         purchase_price: msg.purchase_price,
         transfer_price: msg.transfer_price,
+        trustboost_addr: msg.trustboost_addr,
     };
 
     config(deps.storage).save(&config_state)?;
@@ -37,6 +40,29 @@ pub fn execute(
     match msg {
         ExecuteMsg::Register { name } => execute_register(deps, env, info, name),
         ExecuteMsg::Transfer { name, to } => execute_transfer(deps, env, info, name, to),
+        ExecuteMsg::RegisterTB { name, tb_user } => {
+            let config_state = config(deps.storage).load()?;
+            if config_state.trustboost_addr.is_some() {
+                if config_state.trustboost_addr.unwrap() != info.sender {
+                    return Err(ContractError::Unauthorized {});
+                }
+                let new_info = MessageInfo {
+                    sender: Addr::unchecked(tb_user),
+                    funds: info.funds,
+                };
+                return execute_register(deps, env, new_info, name);
+            } else {
+                // This message can only be executed by trustboost smart contract
+                return Err(ContractError::Unauthorized {});
+            }
+        }
+        ExecuteMsg::UpdateTBAddress {address } =>  {
+            // Only admin can update this check...
+            let mut config_state = config(deps.storage).load()?;
+            config_state.trustboost_addr = Some(Addr::unchecked(address));
+            config(deps.storage).save(&config_state)?;            
+            Ok(Response::new())
+        }
     }
 }
 
@@ -49,7 +75,9 @@ pub fn execute_register(
     // we only need to check here - at point of registration
     validate_name(&name)?;
     let config_state = config(deps.storage).load()?;
-    assert_sent_sufficient_coin(&info.funds, config_state.purchase_price)?;
+
+    // TODO SKIP COIN FOR ONLY TRUST BOOST CHECKS...
+    // assert_sent_sufficient_coin(&info.funds, config_state.purchase_price)?;
 
     let key = name.as_bytes();
     let record = NameRecord { owner: info.sender };

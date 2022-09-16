@@ -1,18 +1,20 @@
 
 use cosmwasm_std::{
-    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env, wasm_execute
+    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env, wasm_execute, WasmMsg, Binary, SubMsg
 };
 
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::hash::Hash;
 
-use crate::state::{RECEIVED_DONE, InputType};
+use crate::ContractError;
+use crate::state::{RECEIVED_DONE, InputType, TBInput};
 use crate::utils::{get_id_channel_pair_from_storage, 
     F, get_chain_id};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::{state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
-    DEBUG, RECEIVED_LOCK
+    DEBUG, RECEIVED_LOCK, DEBUG_RECEIVE_MSG
 }, abort::handle_abort};
 
 // Handle Propose
@@ -28,6 +30,7 @@ fn handle_propose(
     env: &Env
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
+
     // ignore messages from other views, other than abort, done and request messages
     if view != state.view {
     } else {
@@ -68,6 +71,7 @@ fn handle_request(
     chain_id: u32,
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
+
     // state.key2_proofs.push((state.current_tx_id,"received_request".to_string(), chain_id as i32));
     // STATE.save(store, &state)?;
     // Update stored highest_request for that blockchain accordingly
@@ -156,7 +160,7 @@ fn handle_suggest(
                 state.sent.insert("Propose".to_string());
                 STATE.save(store, &state)?;
                 // Retrive the entry with the largest k
-                let (k, v) = state.suggestions.iter().max().unwrap();
+                let (k, v) = state.suggestions.iter().max_by(|x, y| y.0.cmp(&x.0)).unwrap();
                 let propose_packet = Msg::Propose {
                     chain_id: state.chain_id,
                     k: k.clone(),
@@ -368,36 +372,39 @@ fn handle_done(
     local_channel_id: Option<String>,
     val: InputType,
     env: &Env
-) -> StdResult<()> {   
-    let state = STATE.load(store)?;
-    // upon receiving from n - f parties with the same val
-    if message_transfer_hop(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone(), env)? {
-        // decide and terminate
-        let mut state = STATE.load(store)?;
-        state.done = Some(val.clone());
-        STATE.save(store, &state)?;
-    }
-
-    /*
-    if count >= F + 1 {
-        if !state.sent.contains(done_packet.name()) {
-            state.sent.insert(done_packet.name().to_string());
-            STATE.save(store, &state)?;
-            
-            send_all_party(store, queue, done_packet, timeout.clone())?;
+) -> Result<Vec<SubMsg>, ContractError> {   
+    let state = STATE.load(store).unwrap();
+    DEBUG_RECEIVE_MSG.update(store, "handle_done".to_string(), | mut state| -> Result<_, ContractError> {
+        match state {
+            Some(mut vec) => {
+                vec.push(val.clone().binary);
+                Ok(vec)
+            },
+            None => {
+                Ok(vec![val.clone().binary])
+            }
         }
+    })?;
 
-    }
-
-    upon receiving from n - f parties with the same val
-    if count >= state.n - F {
+    // upon receiving from n - f parties with the same val
+    if message_transfer_hop_done(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone(), env).unwrap() {
         // decide and terminate
+        let mut state = STATE.load(store).unwrap();
         state.done = Some(val.clone());
-        STATE.save(store, &state)?;
-    }
-    */
+        STATE.save(store, &state);
 
-    Ok(())
+    //     // TODO! Check signature first before appending address
+    //     // DION
+    //     // let mut binary_msg = Binary::from_base64(&val.binary).unwrap();
+    //     // let wasm_msg = WasmMsg::Execute{
+    //     //     contract_addr: state.contract_addr.to_string(),
+    //     //     msg: binary_msg,
+    //     //     funds: vec![]
+    //     // };
+    //     // let sub_msg = SubMsg::reply_always(wasm_msg, 1234);
+    //     // return vec![sub_msg];
+    }
+    return Ok(Vec::new());
 }
 
 pub fn receive_queue(
@@ -412,7 +419,10 @@ pub fn receive_queue(
     if let Some(_) = STATE.load(store)?.done {
         return Ok(IbcReceiveResponse::new())
     }
+    let mut wasm_exec_messages: Vec<SubMsg> = Vec::new();
+
     for msg in queue_to_process {
+        let msg_string = msg.name();
         // TODO skip...
         // let key = msg.name().to_string();
         // if(RECEIVED.load(store,key)?.contains(local_channel_id.unwrap()?)) {
@@ -424,11 +434,37 @@ pub fn receive_queue(
                 k,
                 v,
                 view,
-            } => handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view, env),
+            } => { 
+                DEBUG_RECEIVE_MSG.update(store, "handle_propose".to_string(), | mut state| -> Result<_, ContractError> {
+                    match state {
+                        Some(mut vec) => {
+                            vec.push(v.clone().binary);
+                            Ok(vec)
+                        },
+                        None => {
+                            Ok(vec![v.clone().binary])
+                        }
+                    }
+                });                            
+                handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view, env) 
+            },
             Msg::Request { 
                 view, 
                 chain_id 
-            } => handle_request(store, queue, view, chain_id),
+            } => {
+                DEBUG_RECEIVE_MSG.update(store, "handle_request".to_string(), | mut state| -> Result<_, ContractError> {
+                    match state {
+                        Some(mut vec) => {
+                            vec.push(chain_id.to_string() + &view.to_string());
+                            Ok(vec)
+                        },
+                        None => {
+                            Ok(vec![chain_id.to_string() + &view.to_string()])
+                        }
+                    }
+                });                            
+                handle_request(store, queue, view, chain_id)
+            },
             Msg::Suggest {
                 chain_id,
                 view,
@@ -437,20 +473,74 @@ pub fn receive_queue(
                 prev_key2,
                 key3,
                 key3_val,
-            } => handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val, env),
-
+            } => { 
+                DEBUG_RECEIVE_MSG.update(store, "handle_suggest".to_string(), | mut state| -> Result<_, ContractError> {
+                    match state {
+                        Some(mut vec) => {
+                            vec.push(key2_val.clone().binary);
+                            Ok(vec)
+                        },
+                        None => {
+                            Ok(vec![key2_val.clone().binary])
+                        }
+                    }
+                });                            
+                handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val, env)
+            },
             Msg::Proof {
                 key1,
                 key1_val,
                 prev_key1,
                 view,
-            } => handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view,env),
-            Msg::Echo { val, view } => handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            } => { 
+                DEBUG_RECEIVE_MSG.update(store, "handle_proof".to_string(), | mut state| -> Result<_, ContractError> {
+                    match state {
+                        Some(mut vec) => {
+                            vec.push(key1_val.clone().binary);
+                            Ok(vec)
+                        },
+                        None => {
+                            Ok(vec![key1_val.clone().binary])
+                        }
+                    }
+                });                            
+                handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view,env)
+            },
+            Msg::Echo { val, view } => { 
+                DEBUG_RECEIVE_MSG.update(store, "handle_echo".to_string(), | mut state| -> Result<_, ContractError> {
+                    match state {
+                        Some(mut vec) => {
+                            vec.push(val.clone().binary);
+                            Ok(vec)
+                        },
+                        None => {
+                            Ok(vec![val.clone().binary])
+                        }
+                    }
+                });                            
+                handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env)
+            },
             Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
             Msg::Key2 { val, view } => handle_key2(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
             Msg::Key3 { val, view } => handle_key3(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
-            Msg::Lock { val, view } => handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
-            Msg::Done { val } => handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env),
+            Msg::Lock { val, view } => {
+                DEBUG_RECEIVE_MSG.update(store, "handle_lock".to_string(), | mut state| -> Result<_, ContractError> {
+                    match state {
+                        Some(mut vec) => {
+                            vec.push(val.clone().binary);
+                            Ok(vec)
+                        },
+                        None => {
+                            Ok(vec![val.clone().binary])
+                        }
+                    }
+                });                            
+                handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env)
+            },
+            Msg::Done { val } => { 
+                wasm_exec_messages = handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env).unwrap();
+                Ok(())
+            }
             Msg::Abort { view, chain_id } => 
             {
                 DEBUG.save(store, 200+chain_id, &"RECEIVED_ABORT".to_string())?;
@@ -470,6 +560,7 @@ pub fn receive_queue(
         return Ok(
             IbcReceiveResponse::new()
                 .add_message(exe_msg)
+                .add_submessages(wasm_exec_messages)
                 .set_ack(acknowledgement)
                 .add_attribute("action", "receive_msg_queue")
         );
@@ -536,6 +627,8 @@ pub fn receive_queue(
                 STATE.save(store, &state)?;
                 res = res.add_messages(msgs);
             }
+            // DION
+            //res = res.add_submessages(wasm_exec_messages);
             
             Ok(res
                 .set_ack(acknowledgement)
@@ -586,7 +679,7 @@ fn message_transfer_hop(
     val: InputType, 
     view: u32,
     queue: &mut Vec<Vec<Msg>>, 
-    message_type: cw_storage_plus::Map<String, HashSet<u32>>, 
+    message_type: cw_storage_plus::Map<u64, HashSet<u32>>, 
     msg_to_send: Msg, 
     timeout: IbcTimeout, 
     channel_id: Option<String>, 
@@ -612,10 +705,11 @@ fn message_transfer_hop(
                 None => Ok(HashSet::new()),
             }
         };
-        let mut set = message_type.update(storage, val.to_string(), action)?;
+        let val_hash = val.calculate_hash();
+        let mut set = message_type.update(storage, val_hash, action)?;
         if !set.contains(&chain_id) {
             set.insert(chain_id);
-            message_type.save(storage, val.to_string(), &set)?;
+            message_type.save(storage, val_hash, &set)?;
 
             // If received Done, operate accordingly
             if message_type.namespace() == "received_done".as_bytes() {
@@ -649,6 +743,76 @@ fn message_transfer_hop(
         }
         Ok(false)
     }
+
+fn message_transfer_hop_done(
+        storage: &mut dyn Storage, 
+        val: InputType, 
+        view: u32,
+        queue: &mut Vec<Vec<Msg>>, 
+        message_type: cw_storage_plus::Map<u64, HashSet<u32>>, 
+        msg_to_send: Msg, 
+        timeout: IbcTimeout, 
+        channel_id: Option<String>, 
+        env: &Env,
+    ) -> Result<bool, StdError> {
+            let state = STATE.load(storage)?;
+            // ignore messages from other views, other than abort, done and request messages
+            if view != state.view && message_type.namespace() != "received_done".as_bytes(){
+                return Ok(false);
+            }
+            // detect if self-send
+            let chain_id = match channel_id {
+                Some(id) => {
+                    // Get the chain_id of the sender
+                    get_chain_id(storage, id)
+                },
+                None => state.chain_id,
+            };
+            // Initialize local record of messages of type key
+            let action = |set: Option<HashSet<u32>>| -> StdResult<HashSet<u32>> {
+                match set {
+                    Some(set) => Ok(set),
+                    None => Ok(HashSet::new()),
+                }
+            };
+            let val_hash = val.calculate_hash();
+            // let mut set = message_type.update(storage, val_hash, action)?;
+            // if !set.contains(&chain_id) {
+            //     set.insert(chain_id);
+            //     message_type.save(storage, val_hash, &set)?;
+    
+            //     // If received Done, operate accordingly
+            //     if message_type.namespace() == "received_done".as_bytes() {
+            //         // check if have not sent Done && received from f + 1 parties 
+            //         if !state.sent.contains(msg_to_send.name()) && set.len() >= (F + 1).try_into().unwrap() {
+            //             let mut state = STATE.load(storage)?;
+            //             state.sent.insert(msg_to_send.name().to_string());
+            //             STATE.save(storage, &state)?;
+            //             send_all_party(storage, queue, msg_to_send, timeout.clone(), env)?;
+            //         }
+            //         // upon receiving from n - f parties with the same val
+            //         if set.len() >= (state.n - F).try_into().unwrap() {
+            //             return Ok(true);
+            //         }
+            //         return Ok(false);
+            //     }
+            //     // upon receiving from n - f parties with the same val
+            //     if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
+            //         let mut state = STATE.load(storage)?;
+            //         state.sent.insert(msg_to_send.name().to_string());
+            //         STATE.save(storage, &state)?;
+            //         // if received Lock, ensure we send <done, val> to every party
+            //         if message_type.namespace() == "received_lock".as_bytes() {
+            //             send_all_party(storage, queue, msg_to_send, timeout, env)?;
+            //             return Ok(true);
+            //         }
+            //         // send_all_upon_join_queue
+            //         send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
+            //         return Ok(true);
+            //     }
+            // }
+            Ok(true)
+        }
 
 // send_all_upon_join_queue Operation
 pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet_msg: Msg, timeout: IbcTimeout, env: &Env) -> Result<(), StdError> {
