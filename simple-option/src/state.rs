@@ -62,7 +62,9 @@ pub struct State {
     pub sent: HashSet<String>,
     pub done: Option<InputType>,
     pub start_time: Timestamp,
-    pub contract_addr: Addr
+    pub contract_addr: Addr,
+    pub done_executed:bool,
+
 }
 
 impl State {
@@ -95,7 +97,8 @@ impl State {
             sent: HashSet::new(),
             done: None,
             start_time,
-            contract_addr
+            contract_addr,
+            done_executed: false,
         }
     }
     pub(crate) fn re_init(&mut self, input: InputType, start_time: Timestamp) -> () {
@@ -128,7 +131,7 @@ impl State {
 
         // reset values
         self.received_propose = false;
-
+        self.done_executed = false;
         ()
 
     }

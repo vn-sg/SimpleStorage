@@ -500,19 +500,30 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
     match msg.id {
         // REQUEST_REPLY_ID => handle_request_reply(deps, get_timeout(env), msg),
         REQUEST_REPLY_ID => Ok(Response::new()),
-        SUGGEST_REPLY_ID => handle_suggest_reply(deps, get_timeout(&env), msg),
+        SUGGEST_REPLY_ID => Ok(Response::new()),
+        1234 => handle_wasm_exec(deps, msg),
         id => Err(StdError::generic_err(format!("Unknown reply id: {}", id))),
     }
 }
 
-fn handle_suggest_reply(_deps: DepsMut, _timeout: IbcTimeout, _msg: Reply) -> StdResult<Response> {
+fn handle_wasm_exec(deps: DepsMut, msg: Reply) -> StdResult<Response> {
     // Upon sucessfully delivered the Suggest Message
     // Load the state
     // let _state = STATE.load(deps.storage)?;
+    
+    
     let res: Response = Response::new();
 
+    let subMsgResult = msg.result;
+    if subMsgResult.is_err() {
+        let str = subMsgResult.unwrap_err();
+        DEBUG.save(deps.storage, 12341234, &str.clone())?;
+        Err(StdError::generic_err(&str.clone()))
+    } else {
+        DEBUG.save(deps.storage, 12341111, &"OK".to_string())?;
+        Ok(res)
+    }
     // Add consecutive submessages
-    Ok(res)
 }
 
 #[cfg(test)]

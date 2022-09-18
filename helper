@@ -25,10 +25,10 @@ INIT_JSON_2='{ "reflect_code_id": 1}'
 TB_INPUT='{"binary": f,"public_key": "f", "signature": []}'
 
 NS_CONTRACT_ADDRESS="wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"
-INSTANTIATE_MSG_CHAIN0="{\"chain_id\": 0,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
-INSTANTIATE_MSG_CHAIN1="{\"chain_id\": 1,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
-INSTANTIATE_MSG_CHAIN2="{\"chain_id\": 2,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
-INSTANTIATE_MSG_CHAIN3="{\"chain_id\": 3,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
+INSTANTIATE_MSG_CHAIN0="{\"chain_id\": 0,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN1="{\"chain_id\": 1,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN2="{\"chain_id\": 2,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN3="{\"chain_id\": 3,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
 
 target=$2
 param1=$3

@@ -400,14 +400,14 @@ fn handle_done(
 
     //     // TODO! Check signature first before appending address
     //     // DION
-    //     // let mut binary_msg = Binary::from_base64(&val.binary).unwrap();
-    //     // let wasm_msg = WasmMsg::Execute{
-    //     //     contract_addr: state.contract_addr.to_string(),
-    //     //     msg: binary_msg,
-    //     //     funds: vec![]
-    //     // };
-    //     // let sub_msg = SubMsg::reply_always(wasm_msg, 1234);
-    //     // return vec![sub_msg];
+        let mut binary_msg = Binary::from_base64(&val.binary).unwrap();
+        let wasm_msg = WasmMsg::Execute{
+            contract_addr: state.contract_addr.to_string(),
+            msg: binary_msg,
+            funds: vec![]
+        };
+        let sub_msg = SubMsg::reply_always(wasm_msg, 1234);
+        return Ok(vec![sub_msg]);
     }
     return Ok(Vec::new());
 }
@@ -440,17 +440,6 @@ pub fn receive_queue(
                 v,
                 view,
             } => { 
-                DEBUG_RECEIVE_MSG.update(store, "handle_propose".to_string(), | mut state| -> Result<_, ContractError> {
-                    match state {
-                        Some(mut vec) => {
-                            vec.push(v.clone().binary);
-                            Ok(vec)
-                        },
-                        None => {
-                            Ok(vec![v.clone().binary])
-                        }
-                    }
-                });                            
                 handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view, env) 
             },
             Msg::Request { 
@@ -560,18 +549,14 @@ pub fn receive_queue(
         result?
     }
 
-    // Execute if decided
-    let state = STATE.load(store)?;
+
+    let mut res = IbcReceiveResponse::new();
+    let mut state = STATE.load(store)?;
     if let Some(val) = state.done {
-        let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;
-        let exe_msg = wasm_execute(state.contract_addr.to_string(), &val.binary, vec![])?;
-        return Ok(
-            IbcReceiveResponse::new()
-                .add_message(exe_msg)
-                .set_ack(acknowledgement)
-                .add_attribute("action", "receive_msg_queue")
-        );
-    }
+        if wasm_exec_messages.len() > 0 {
+            res = res.add_submessages(wasm_exec_messages);
+        }
+    }   
 
     match local_channel_id {
         Some(_) => {
@@ -624,9 +609,7 @@ pub fn receive_queue(
             STATE.save(store, &state)?;
             //// TESTING ////
 
-            let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;
-            let mut res = IbcReceiveResponse::new();
-            
+            let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;            
             // Add to Response if there are pending messages
             if msgs.len() > 0 {
                 TEST.save(store, state.current_tx_id, &msgs)?;
@@ -634,17 +617,16 @@ pub fn receive_queue(
                 STATE.save(store, &state)?;
                 res = res.add_messages(msgs);
             }
-            // DION
-            //res = res.add_submessages(wasm_exec_messages);
-            
+                    
             Ok(res
                 .set_ack(acknowledgement)
                 .add_attribute("action", "receive_msg_queue"))
         },
-        None => Ok(IbcReceiveResponse::new().set_ack(b"{}")
-        .add_attribute("action", "ibc_packet_ack"))
+        None => { 
+            Ok(res.set_ack(b"{}")
+                .add_attribute("action", "ibc_packet_ack"))
+        }
     }
-
 }
 
 
