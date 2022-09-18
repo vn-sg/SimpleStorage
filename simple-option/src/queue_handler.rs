@@ -331,13 +331,17 @@ fn handle_key3(
     env: &Env
 ) -> StdResult<()> {
     let lock_packet = Msg::Lock { val: val.clone(), view }; 
+
+    DEBUG.save(store, 33330, &queue.len().to_string())?;
     if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone(),env)? {
         let mut state = STATE.load(store)?;
         state.lock = view;
         state.lock_val = val;
         STATE.save(store, &state)?;    
+        DEBUG.save(store, 33333, &"HANDLE_KEY_3_TRUE".to_string())?;
+    } else {
+        DEBUG.save(store, 3333, &"HANDLE_KEY_3_FALSE".to_string())?;
     }
-
     Ok(())
 }
 
@@ -354,12 +358,13 @@ fn handle_lock(
     let done_packet = Msg::Done { val: val.clone() };
     // ignore messages from other views, other than abort, done and request messages
     // upon receiving from n - f parties with the same val
-    message_transfer_hop(store, val, view, queue, RECEIVED_LOCK, done_packet.clone(), timeout.clone(), local_channel_id.clone(), env)?;
-        // let mut state = STATE.load(store)?;
-        // state.sent.insert(done_packet.name().to_string());
-        // STATE.save(store, &state)?;
+    let result = message_transfer_hop(store, val.clone(), view, queue, RECEIVED_LOCK, 
+                                            done_packet.clone(), timeout.clone(), local_channel_id.clone(), env)?;
+    // let mut state = STATE.load(store)?;
+    // state.sent.insert(done_packet.name().to_string());
+    // STATE.save(store, &state)?;
 
-        // send_all_party(store, queue, done_packet, timeout.clone())?;
+    // send_all_party(store, queue, done_packet, timeout.clone())?;
     Ok(())
 
 }
@@ -374,24 +379,24 @@ fn handle_done(
     env: &Env
 ) -> Result<Vec<SubMsg>, ContractError> {   
     let state = STATE.load(store).unwrap();
-    DEBUG_RECEIVE_MSG.update(store, "handle_done".to_string(), | mut state| -> Result<_, ContractError> {
-        match state {
-            Some(mut vec) => {
-                vec.push(val.clone().binary);
-                Ok(vec)
-            },
-            None => {
-                Ok(vec![val.clone().binary])
-            }
-        }
-    })?;
+    // DEBUG_RECEIVE_MSG.update(store, "handle_done".to_string(), | mut state| -> Result<_, ContractError> {
+    //     match state {
+    //         Some(mut vec) => {
+    //             vec.push(val.clone().binary);
+    //             Ok(vec)
+    //         },
+    //         None => {
+    //             Ok(vec![val.clone().binary])
+    //         }
+    //     }
+    // })?;
 
     // upon receiving from n - f parties with the same val
     if message_transfer_hop_done(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone(), env).unwrap() {
         // decide and terminate
         let mut state = STATE.load(store).unwrap();
         state.done = Some(val.clone());
-        STATE.save(store, &state);
+        STATE.save(store, &state)?;
 
     //     // TODO! Check signature first before appending address
     //     // DION
@@ -522,19 +527,22 @@ pub fn receive_queue(
             },
             Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
             Msg::Key2 { val, view } => handle_key2(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
-            Msg::Key3 { val, view } => handle_key3(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Key3 { val, view } => {
+                handle_key3(
+                    store, queue, timeout.clone(), local_channel_id.clone(), val, view,env
+            )},
             Msg::Lock { val, view } => {
-                DEBUG_RECEIVE_MSG.update(store, "handle_lock".to_string(), | mut state| -> Result<_, ContractError> {
-                    match state {
-                        Some(mut vec) => {
-                            vec.push(val.clone().binary);
-                            Ok(vec)
-                        },
-                        None => {
-                            Ok(vec![val.clone().binary])
-                        }
-                    }
-                });                            
+                // DEBUG_RECEIVE_MSG.update(store, "handle_lock".to_string(), | mut state| -> Result<_, ContractError> {
+                //     match state {
+                //         Some(mut vec) => {
+                //             vec.push(val.clone().binary);
+                //             Ok(vec)
+                //         },
+                //         None => {
+                //             Ok(vec![val.clone().binary])
+                //         }
+                //     }
+                // });                            
                 handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env)
             },
             Msg::Done { val } => { 
@@ -556,11 +564,10 @@ pub fn receive_queue(
     let state = STATE.load(store)?;
     if let Some(val) = state.done {
         let acknowledgement = to_binary(&AcknowledgementMsg::Ok(MsgQueueResponse { }))?;
-        let exe_msg = wasm_execute(state.contract_addr.to_string(), &val, vec![])?;
+        let exe_msg = wasm_execute(state.contract_addr.to_string(), &val.binary, vec![])?;
         return Ok(
             IbcReceiveResponse::new()
                 .add_message(exe_msg)
-                .add_submessages(wasm_exec_messages)
                 .set_ack(acknowledgement)
                 .add_attribute("action", "receive_msg_queue")
         );
@@ -725,20 +732,23 @@ fn message_transfer_hop(
                     return Ok(true);
                 }
                 return Ok(false);
-            }
-            // upon receiving from n - f parties with the same val
-            if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
-                let mut state = STATE.load(storage)?;
-                state.sent.insert(msg_to_send.name().to_string());
-                STATE.save(storage, &state)?;
-                // if received Lock, ensure we send <done, val> to every party
-                if message_type.namespace() == "received_lock".as_bytes() {
-                    send_all_party(storage, queue, msg_to_send, timeout, env)?;
-                    return Ok(true);
+            } else {
+                // upon receiving from n - f parties with the same val
+                if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
+                    let mut state = STATE.load(storage)?;
+                    state.sent.insert(msg_to_send.name().to_string());
+                    STATE.save(storage, &state)?;
+                    // if received Lock, ensure we send <done, val> to every party
+                    if message_type.namespace() == "received_lock".as_bytes() {
+                        send_all_party(storage, queue, msg_to_send, timeout, env)?;
+                        return Ok(true);
+                    } else {
+                        send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
+                        return Ok(true);    
+                    }
+                } else {
+                    return Ok(false);
                 }
-                // send_all_upon_join_queue
-                send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
-                return Ok(true);
             }
         }
         Ok(false)
@@ -758,6 +768,7 @@ fn message_transfer_hop_done(
             let state = STATE.load(storage)?;
             // ignore messages from other views, other than abort, done and request messages
             if view != state.view && message_type.namespace() != "received_done".as_bytes(){
+                DEBUG.save(storage, 0000, &"RECEIVED_DONE_RETURN_FALSE".to_string())?;
                 return Ok(false);
             }
             // detect if self-send
@@ -776,41 +787,41 @@ fn message_transfer_hop_done(
                 }
             };
             let val_hash = val.calculate_hash();
-            // let mut set = message_type.update(storage, val_hash, action)?;
-            // if !set.contains(&chain_id) {
-            //     set.insert(chain_id);
-            //     message_type.save(storage, val_hash, &set)?;
+            let mut set = message_type.update(storage, val_hash, action)?;
+            if !set.contains(&chain_id) {
+                set.insert(chain_id);
+                message_type.save(storage, val_hash, &set)?;
     
-            //     // If received Done, operate accordingly
-            //     if message_type.namespace() == "received_done".as_bytes() {
-            //         // check if have not sent Done && received from f + 1 parties 
-            //         if !state.sent.contains(msg_to_send.name()) && set.len() >= (F + 1).try_into().unwrap() {
-            //             let mut state = STATE.load(storage)?;
-            //             state.sent.insert(msg_to_send.name().to_string());
-            //             STATE.save(storage, &state)?;
-            //             send_all_party(storage, queue, msg_to_send, timeout.clone(), env)?;
-            //         }
-            //         // upon receiving from n - f parties with the same val
-            //         if set.len() >= (state.n - F).try_into().unwrap() {
-            //             return Ok(true);
-            //         }
-            //         return Ok(false);
-            //     }
-            //     // upon receiving from n - f parties with the same val
-            //     if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
-            //         let mut state = STATE.load(storage)?;
-            //         state.sent.insert(msg_to_send.name().to_string());
-            //         STATE.save(storage, &state)?;
-            //         // if received Lock, ensure we send <done, val> to every party
-            //         if message_type.namespace() == "received_lock".as_bytes() {
-            //             send_all_party(storage, queue, msg_to_send, timeout, env)?;
-            //             return Ok(true);
-            //         }
-            //         // send_all_upon_join_queue
-            //         send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
-            //         return Ok(true);
-            //     }
-            // }
+                // If received Done, operate accordingly
+                if message_type.namespace() == "received_done".as_bytes() {
+                    // check if have not sent Done && received from f + 1 parties 
+                    if !state.sent.contains(msg_to_send.name()) && set.len() >= (F + 1).try_into().unwrap() {
+                        let mut state = STATE.load(storage)?;
+                        state.sent.insert(msg_to_send.name().to_string());
+                        STATE.save(storage, &state)?;
+                        send_all_party(storage, queue, msg_to_send, timeout.clone(), env)?;
+                    }
+                    // upon receiving from n - f parties with the same val
+                    if set.len() >= (state.n - F).try_into().unwrap() {
+                        return Ok(true);
+                    }
+                    return Ok(false);
+                }
+                // upon receiving from n - f parties with the same val
+                if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
+                    let mut state = STATE.load(storage)?;
+                    state.sent.insert(msg_to_send.name().to_string());
+                    STATE.save(storage, &state)?;
+                    // if received Lock, ensure we send <done, val> to every party
+                    if message_type.namespace() == "received_lock".as_bytes() {
+                        send_all_party(storage, queue, msg_to_send, timeout, env)?;
+                        return Ok(true);
+                    }
+                    // send_all_upon_join_queue
+                    send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
+                    return Ok(true);
+                }
+            }
             Ok(true)
         }
 
@@ -824,10 +835,10 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<M
     for (chain_id, _channel_id) in &channel_ids {
         let highest_request = HIGHEST_REQ.load(storage, chain_id.clone())?;
         if highest_request == state.view {
+            //DEBUG.save(storage, 10000000+chain_id, &chain_id.to_string())?;
             queue[*chain_id as usize].push(packet_msg.clone());
-        }
-        // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
-        else{
+        } else {
+            // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
             let action = |packets: Option<Vec<Msg>>| -> StdResult<Vec<Msg>> {
                 match packets {
                     Some(mut p) => {

@@ -21,39 +21,12 @@ pub enum ExecuteMsg {
     PreInput { value: InputType},
     ForceAbort {},
     Abort {},
-    Trigger { behavior: String }
+    Trigger { behavior: String },
+    Key3 {val: InputType,view: u32,local_channel_id: String},
+    Lock {val: InputType,view: u32,local_channel_id: String},
+    Done {val: InputType,view: u32,local_channel_id: String},
+    SetContractAddr {addr: String},
 }
-
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case")]
-pub enum ContractExecuteMsg {
-    Register { name: String },
-    Transfer { name: String, to: String },
-}
-
-impl fmt::Display for ContractExecuteMsg {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ContractExecuteMsg::Register { name } => write!(f, "r,{}", name),
-            ContractExecuteMsg::Transfer { name, to } => write!(f, "t,{},{}", name, to),
-        }
-        
-    }
-}
-impl ContractExecuteMsg {
-    pub(crate) fn generate(name: String) -> Self {
-        ContractExecuteMsg::Register { name }
-    }
-//     pub(crate) fn as_bytes(self) -> &'static [u8] {
-//         &to_binary(&self).unwrap()
-//     }
-}
-
-// pub enum Trigger {
-//     MultiPropose {},
-//     SendMsgToAll ( String )
-// }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

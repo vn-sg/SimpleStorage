@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, wasm_execute, WasmMsg,
+    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Storage,
 };
 
 use std::convert::TryInto;
@@ -21,7 +21,7 @@ use crate::msg::{
     AbortResponse, ChannelsResponse, DoneQueryResponse, EchoQueryResponse, ExecuteMsg,
     HighestAbortResponse, HighestReqResponse, InstantiateMsg, Key1QueryResponse, Key2QueryResponse,
     Key3QueryResponse, LockQueryResponse, QueryMsg, ReceivedSuggestResponse, SendAllUponResponse,
-    StateResponse, TestQueueResponse, ContractExecuteMsg,
+    StateResponse, TestQueueResponse,
 };
 use crate::state::{
     State, CHANNELS, DEBUG, HIGHEST_ABORT, HIGHEST_REQ, RECEIVED, RECEIVED_ECHO, DEBUG_CTR,
@@ -39,6 +39,7 @@ pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
 pub const VIEW_TIMEOUT_SECONDS: u64 = 10;
+pub const ALLOW_DEBUG: bool = true;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -79,9 +80,110 @@ pub fn execute(
         ExecuteMsg::PreInput { value } => handle_execute_preinput(deps, env, info, value),
         ExecuteMsg::ForceAbort {} => {
             todo!()
-        }
+        },
         ExecuteMsg::Abort {} => handle_execute_abort(deps, env),
         ExecuteMsg::Trigger { behavior } => handle_trigger(deps, env, behavior),
+        ExecuteMsg::Key3 { val, view, local_channel_id } => {
+            if !ALLOW_DEBUG {
+                return Ok(Response::new())
+            }
+            HIGHEST_REQ.save(deps.storage, 0,&0)?;
+            HIGHEST_REQ.save(deps.storage, 1, &0)?;
+            HIGHEST_REQ.save(deps.storage, 2, &0)?;
+            HIGHEST_REQ.save(deps.storage, 3, &0)?;
+
+            let state = STATE.load(deps.storage)?;
+            let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+            let mut result;
+            if local_channel_id != "None" {
+                result =receive_queue(
+                    deps.storage,
+                    get_timeout(&env),
+                    Some(local_channel_id),
+                    vec![Msg::Key3 { val: val, view: view }],
+                    &mut queue,
+                    &env
+                )?;
+            } else {
+                result = receive_queue(
+                    deps.storage,
+                    get_timeout(&env),
+                    None,
+                    vec![Msg::Key3 { val: val, view: view }],
+                    &mut queue,
+                    &env
+                )?;
+            }
+
+            let messages = result.messages;
+            Ok(Response::new().add_submessages(messages))
+        },
+        ExecuteMsg::Lock { val, view, local_channel_id } => {
+            if !ALLOW_DEBUG {
+                return Ok(Response::new())
+            }
+            let state = STATE.load(deps.storage)?;
+            let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+            let mut result;
+            if local_channel_id != "None" {
+                result = receive_queue(
+                    deps.storage,
+                    get_timeout(&env),
+                    Some(local_channel_id),
+                    vec![Msg::Lock { val: val, view: view }],
+                    &mut queue,
+                    &env
+                )?;
+            } else {
+                result = receive_queue(
+                    deps.storage,
+                    get_timeout(&env),
+                    None,
+                    vec![Msg::Lock { val: val, view: view }],
+                    &mut queue,
+                    &env
+                )?;
+            }
+    
+            let messages = result.messages;
+            Ok(Response::new().add_submessages(messages))
+        },
+        ExecuteMsg::Done { val, view, local_channel_id } => {
+            if !ALLOW_DEBUG {
+                return Ok(Response::new())
+            }
+            let state = STATE.load(deps.storage)?;
+            let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
+            let mut result;
+            if local_channel_id != "None" {
+                result = receive_queue(
+                    deps.storage,
+                    get_timeout(&env),
+                    Some(local_channel_id),
+                    vec![Msg::Done { val: val }],
+                    &mut queue,
+                    &env
+                )?;
+            } else {
+                result = receive_queue(
+                    deps.storage,
+                    get_timeout(&env),
+                    None,
+                    vec![Msg::Done { val: val }],
+                    &mut queue,
+                    &env
+                )?;
+            }
+            
+            let messages = result.messages;
+            Ok(Response::new().add_submessages(messages))
+        },         
+        ExecuteMsg::SetContractAddr { addr } => {
+            let mut state = STATE.load(deps.storage)?;
+            state.contract_addr = cosmwasm_std::Addr::unchecked(addr);
+            STATE.save(deps.storage, &state)?;
+            Ok(Response::new())
+        },
     }
 }
 
@@ -420,76 +522,4 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{coins, from_binary, OwnedDeps};
-
-    #[test]
-    fn proper_initialization() {
-        // let deps = instantiate_then_get_deps();
-
-        // query the state and verify if successful
-        // let res = query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap();
-        // let value: State = from_binary(&res).unwrap();
-        // assert_eq!("leader", value.role);
-        // assert_eq!(0, value.current_tx_id);
-        // assert!(value.channel_ids.is_empty());
-    }
-
-    #[test]
-    fn test_execute() {
-        // let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
-        // let mut deps = mock_dependencies();
-
-        // let msg = InstantiateMsg {
-        //     // role: "leader".to_string(),
-        //     chain_id: 0,
-        //     input: 0.to_string(),
-        // };
-        // let info = mock_info("creator_V", &coins(100, "BTC"));
-        // let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // // call the execute function of contract
-        // let info = mock_info("anyone", &coins(2, "token"));
-        // let msg = ExecuteMsg::Set {
-        //     key: "TestKey".to_string(),
-        //     // value: "value_of_TestKey".to_string(),
-        //     value: 0,
-        // };
-        // let _res = execute(deps.as_mut(), mock_env(), info, msg.clone()).unwrap();
-
-        // // check if map in local state has been updated correctly
-        // let res = query(
-        //     deps.as_ref(),
-        //     mock_env(),
-        //     QueryMsg::GetTx {
-        //         tx_id: "0".to_string(),
-        //     },
-        // )
-        // .unwrap();
-        // let tx: Tx = from_binary(&res).unwrap();
-        // assert_eq!(1, tx.no_of_votes);
-        // assert_eq!(msg.clone(), tx.msg);
-
-        // // CHECK for key/value in VARS
-        // let res = query(deps.as_ref(), mock_env(), QueryMsg::GetValue { key: "TestKey".to_string() }).unwrap();
-        // let value: String = from_binary(&res).unwrap();
-        // assert_eq!("value_of_TestKey", value);
-
-        // // should increase counter by 1
-        // let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        // let value: CountResponse = from_binary(&res).unwrap();
-        // assert_eq!(18, value.count);
-    }
-
-    // fn instantiate_then_get_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    //     let mut deps = mock_dependencies();
-    //     let msg = InstantiateMsg {
-    //         // role: "leader".to_string(),
-    //         chain_id: 0,
-    //         input: 0.to_string(),
-    //     };
-    //     let info = mock_info("creator_V", &coins(100, "BTC"));
-    //     // we can just call .unwrap() to assert this was a success
-    //     let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-    //     assert_eq!(0, res.messages.len());
-    //     deps
-    // }
 }

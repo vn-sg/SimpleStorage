@@ -5,6 +5,8 @@
 #NODE_2=http://127.0.0.1:26557 
 #NODE_3=http://127.0.0.1:26558 
 
+#binary = eyJyZWdpc3RlciI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
+
 NODE_0=http://127.0.0.1:26657
 NODE_1=http://127.0.0.1:26557
 NODE_2=http://127.0.0.1:25557
@@ -22,14 +24,15 @@ INIT_JSON_2='{ "reflect_code_id": 1}'
 
 TB_INPUT='{"binary": f,"public_key": "f", "signature": []}'
 
-INSTANTIATE_MSG_CHAIN0='{"chain_id": 0,"input": {"binary": "f","public_key": "f", "signature": []}, "contract_addr": "wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-INSTANTIATE_MSG_CHAIN1='{"chain_id": 1,"input": {"binary": "f","public_key": "f", "signature": []}, "contract_addr": "wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-INSTANTIATE_MSG_CHAIN2='{"chain_id": 2,"input": {"binary": "f","public_key": "f", "signature": []}, "contract_addr": "wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-INSTANTIATE_MSG_CHAIN3='{"chain_id": 3,"input": {"binary": "f","public_key": "f", "signature": []}, "contract_addr": "wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"}'
-
+NS_CONTRACT_ADDRESS="wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"
+INSTANTIATE_MSG_CHAIN0="{\"chain_id\": 0,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
+INSTANTIATE_MSG_CHAIN1="{\"chain_id\": 1,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
+INSTANTIATE_MSG_CHAIN2="{\"chain_id\": 2,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
+INSTANTIATE_MSG_CHAIN3="{\"chain_id\": 3,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": $NS_CONTRACT_ADDRESS}"
 
 target=$2
 param1=$3
+param2=$4
 #node=$(expr 5 + $2)
 #node="http://127.0.0.1:2655$node"
 node="5"
@@ -285,16 +288,6 @@ deployNSAll()
 }
 
 
-setUV() 
-{
-    set -x
-    node=$NODE_0
-    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
-    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    EXEC_MSG="{\"set\": {\"value\": \"$param1\"}}"
-    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
-}
-
 input() 
 {
     set -x
@@ -321,6 +314,36 @@ preInputAll()
     preInput
     preInput
     preInput
+}
+
+debugKey3() 
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    #  {"binary": "f","public_key": "f", "signature": []}
+    EXEC_MSG="{ \"key3\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+}
+
+debugLock()
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    #  {"binary": "f","public_key": "f", "signature": []}
+    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+}
+
+debugDone()
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    #  {"binary": "f","public_key": "f", "signature": []}
+    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
 
@@ -497,6 +520,16 @@ queryKey3()
     wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node
 }
 
+queryLock()
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    QUERY_MSG="{\"get_lock\": {}}" 
+    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node
+}
+
+
 queryClientRequest()
 {
     set -x
@@ -587,7 +620,7 @@ resolveRecord()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     QUERY_MSG="{\"resolve_record\": {\"name\": \"$param1\"}}"
-    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
+    wasmd query wasm contract-state smart $NS_CONTRACT_ADDRESS "$QUERY_MSG" --chain-id $chain --node $node    
 }
 
 geyKey()
@@ -669,6 +702,12 @@ elif [ $1 = "preInput" ]; then
     preInput
 elif [ $1 = "execAbort" ]; then
     execAbort
+elif [ $1 = "debugKey3" ]; then
+    debugKey3
+elif [ $1 = "debugLock" ]; then
+    debugLock
+elif [ $1 = "debugDone" ]; then
+    debugDone
 elif [ $1 = "inputTest" ]; then
     inputTest
 elif [ $1 = "clientRequest" ]; then
@@ -705,6 +744,8 @@ elif [ $1 = "queryKey2" ]; then
     queryKey2
 elif [ $1 = "queryKey3" ]; then
     queryKey3
+elif [ $1 = "queryLock" ]; then
+    queryLock    
 elif [ $1 = "queryState" ]; then
     queryState
 elif [ $1 = "queryStateProgress" ]; then
