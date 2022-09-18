@@ -41,6 +41,7 @@ console.log(privkey);
 // https://github.com/CosmWasm/cosmwasm/tree/main/contracts/crypto-verify
 // Signature: Serialized signature, in "compact" Cosmos format (64 bytes). Ethereum DER needs to be converted.
 
+// Need to figure out hash in smart contract https://github.com/CosmWasm/cosmwasm/blob/main/packages/crypto/src/secp256k1.rs#L28-L64
 const messageHash = new Uint8Array([0x11, 0x22]);
 const signature = await Secp256k1.createSignature(messageHash, keyPair.privkey);
 
