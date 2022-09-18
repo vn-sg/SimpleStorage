@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Storage,
+    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Storage, Addr,
 };
 
 use std::convert::TryInto;
@@ -10,11 +10,12 @@ use std::convert::TryInto;
 use cw2::set_contract_version;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use sha2::{Digest, Sha256};
 
 use crate::error::ContractError;
 use crate::ibc_msg::{Msg, PacketMsg};
 use crate::queue_handler::{receive_queue, send_all_party};
-use crate::utils::{get_timeout, init_receive_map, get_id_channel_pair_from_storage, convert_send_ibc_msg};
+use crate::utils::{get_timeout, init_receive_map, get_id_channel_pair_from_storage, convert_send_ibc_msg, derive_addr_from_pubkey};
 use crate::view_change::{view_change, convert_queue_to_ibc_msgs, testing_add2queue};
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -323,6 +324,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetHighestAbort {} => to_binary(&query_highest_abort(deps)?),
         QueryMsg::GetIbcDebug {} => to_binary(&query_ibc_debug(deps)?),
         QueryMsg::GetDebugReceive{} => to_binary(&query_debug_receive(deps)?),
+        QueryMsg::CheckSignature { val } => to_binary(&check_signature(deps, val)?),
+        QueryMsg::GetAddress { val }  => to_binary(&get_address(deps, val)?),
      }
 }
 
@@ -484,15 +487,29 @@ fn query_debug_receive(deps: Deps) -> StdResult<Vec<(String, Vec<String>)>> {
     Ok(test?)
 }
 
-/*
-fn query_value(deps: Deps, key: String) -> StdResult<ValueResponse> {
-    let value = VARS.may_load(deps.storage, &key)?;
-    match value {
-        Some(v) => Ok(ValueResponse::KeyFound { key, value: v }),
-        None => Ok(ValueResponse::KeyNotFound {}),
-    }
+
+// https://github.com/CosmWasm/cosmwasm/blob/main/contracts/crypto-verify/src/contract.rs#L90-L107
+fn check_signature(deps: Deps, val: InputType) -> StdResult<Vec<bool>> {
+    let mut result: Vec<bool> = Vec::new();
+
+    // Hashing
+    let hash = Sha256::digest(val.binary);
+
+    // Verification
+    let verify_result = deps
+        .api
+        .secp256k1_verify(hash.as_ref(), &val.signature, &val.public_key)?;
+
+    result.push(verify_result);
+    Ok(result)
 }
-*/
+
+// https://github.com/CosmWasm/cosmwasm/blob/main/contracts/crypto-verify/src/contract.rs#L90-L107
+fn get_address(deps: Deps, val: InputType) -> StdResult<Addr> {
+   let result = derive_addr_from_pubkey(&val.public_key);
+    Ok(result.unwrap())
+}
+
 
 // entry_point for sub-messages
 #[cfg_attr(not(feature = "library"), entry_point)]

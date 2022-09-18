@@ -51,6 +51,12 @@ pub enum QueryMsg {
     GetDebug { },
     GetIbcDebug {},
     GetDebugReceive {},
+    CheckSignature {
+        val: InputType
+    },
+    GetAddress {
+        val: InputType
+    }
 }
 
 // We define a custom struct for each query response

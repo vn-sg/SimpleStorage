@@ -1,17 +1,20 @@
 use std::collections::HashSet;
 
 use cosmwasm_std::{
-    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary,
+    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary, Addr
 };
 
 use crate::ibc_msg::{
     Msg, PacketMsg
 };
 
+use sha2::{Digest, Sha256};
+use bech32::ToBase32;
+use ripemd::{Digest as RipDigest, Ripemd160};
 
 use cw_storage_plus::{Map};
 use crate::state::{
-    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,
+    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,RECEIVED_DONE
 };
 
 /// Setting the lifetime of packets to be one hour
@@ -76,6 +79,8 @@ pub fn reset_view_specific_maps(store: &mut dyn Storage) -> StdResult<()> {
     delete_map(store, RECEIVED_KEY2)?;
     delete_map(store, RECEIVED_KEY3)?;
     delete_map(store, RECEIVED_LOCK)?;
+    delete_map(store, RECEIVED_DONE)?;
+
     //// TESTING ////
     let keys: StdResult<Vec<_>> = TEST_QUEUE
         .keys(store, None, None, Order::Ascending)
@@ -186,4 +191,27 @@ pub fn convert_send_ibc_msg(channel_id: String, packet: PacketMsg, timeout: IbcT
         data: to_binary(&packet).unwrap(),
         timeout,
     }
+}
+
+pub fn derive_addr_from_pubkey(pub_key_bytes: &[u8]) -> Result<Addr, ContractError> {
+
+    if pub_key_bytes.len() != 32 {
+        return Err(ContractError::CustomError { val: "PUB_KEY_LENGTH NOT 32".to_string() });
+   }
+
+   // derive external address for merkle proof check
+    let sha_hash = Sha256::digest(pub_key_bytes);
+
+    if sha_hash.len() != 32 {
+         return Err(ContractError::CustomError { val: "INVALID_LENGTH NOT 32".to_string() });
+    }
+    
+    let rip_hash = Ripemd160::digest(sha_hash);
+    let rip_slice: &[u8] = rip_hash.as_slice();
+
+    let addr: String = bech32::encode("wasm", rip_slice.to_base32(), bech32::Variant::Bech32)
+        .map_err(|err| ContractError::CustomError { val: err.to_string() })?;
+
+    let addr = cosmwasm_std::Addr::unchecked(addr);
+    Ok(addr)
 }

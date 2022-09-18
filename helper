@@ -25,14 +25,15 @@ INIT_JSON_2='{ "reflect_code_id": 1}'
 TB_INPUT='{"binary": f,"public_key": "f", "signature": []}'
 
 NS_CONTRACT_ADDRESS="wasm14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9s0phg4d"
-INSTANTIATE_MSG_CHAIN0="{\"chain_id\": 0,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
-INSTANTIATE_MSG_CHAIN1="{\"chain_id\": 1,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
-INSTANTIATE_MSG_CHAIN2="{\"chain_id\": 2,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
-INSTANTIATE_MSG_CHAIN3="{\"chain_id\": 3,\"input\": {\"binary\": \"f\",\"public_key\": \"f\", \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN0="{\"chain_id\": 0,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN1="{\"chain_id\": 1,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN2="{\"chain_id\": 2,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+INSTANTIATE_MSG_CHAIN3="{\"chain_id\": 3,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
 
 target=$2
 param1=$3
 param2=$4
+param3=$5
 #node=$(expr 5 + $2)
 #node="http://127.0.0.1:2655$node"
 node="5"
@@ -294,7 +295,7 @@ input()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}}}"
+    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -304,7 +305,7 @@ preInput()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #EXEC_MSG="{ \"pre_input\" : { \"value\" : \"$param1\"}}"
-    EXEC_MSG="{ \"pre_input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}}}"
+    EXEC_MSG="{ \"pre_input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
 }
 
@@ -322,7 +323,7 @@ debugKey3()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"key3\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"key3\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -332,7 +333,7 @@ debugLock()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -342,7 +343,7 @@ debugDone()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : \"TODO\", \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -623,14 +624,28 @@ resolveRecord()
     wasmd query wasm contract-state smart $NS_CONTRACT_ADDRESS "$QUERY_MSG" --chain-id $chain --node $node    
 }
 
-geyKey()
+checkSignature()
 {
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    QUERY_MSG="{\"get_state\": {}}" 
+
+    QUERY_MSG="{ \"check_signature\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $param2, \"signature\" : $param3}}}"
     wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
 }
+
+getAddress()
+{
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+
+
+    QUERY_MSG="{ \"get_address\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $param2, \"signature\" : $param3}}}"
+    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
+}
+
+
 
 
 
@@ -760,6 +775,10 @@ elif [ $1 = "registerNameTB" ]; then
     registerNameTB        
 elif [ $1 = "resolveRecord" ]; then
     resolveRecord        
+elif [ $1 = "getAddress" ]; then
+    getAddress
+elif [ $1 = "checkSignature" ]; then
+    checkSignature
 else
     echo "unknown method in helper script see"
 fi

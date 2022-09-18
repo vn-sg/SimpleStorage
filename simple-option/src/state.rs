@@ -15,7 +15,7 @@ use crate::{ibc_msg::Msg};
 #[serde(rename_all = "snake_case")]
 pub struct TBInput {
     pub binary: String,
-    pub public_key: String,
+    pub public_key: Vec<u8>,
     pub signature: Vec<u8>,
 }
 

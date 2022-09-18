@@ -42,7 +42,21 @@ console.log(privkey);
 // Signature: Serialized signature, in "compact" Cosmos format (64 bytes). Ethereum DER needs to be converted.
 
 // Need to figure out hash in smart contract https://github.com/CosmWasm/cosmwasm/blob/main/packages/crypto/src/secp256k1.rs#L28-L64
-const messageHash = new Uint8Array([0x11, 0x22]);
+// SHA256 hashing inside a smart contract https://github.com/CosmWasm/cosmwasm/blob/main/contracts/crypto-verify/src/contract.rs#L90-L107
+
+// https://github.com/cosmos/cosmjs/blob/720d3b211e824f42a6a41a46e7a1d5c6a085ca00/packages/crypto/src/sha.ts#L29 sha256 expects u8 array
+
+let binary_string = "eyJyZWdpc3RlciI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ"
+const len = binary_string.length;
+let bytes = new Uint8Array(len);
+for (var i = 0; i < len; i++) {
+   bytes[i] = binary_string.charCodeAt(i);
+}
+let messageHash = sha256(bytes);
+
+console.log("Message Hash");
+console.log(messageHash);
+
 const signature = await Secp256k1.createSignature(messageHash, keyPair.privkey);
 
 // https://github.com/cosmos/cosmjs/blob/720d3b211e824f42a6a41a46e7a1d5c6a085ca00/packages/crypto/src/secp256k1signature.ts#L16-L31
