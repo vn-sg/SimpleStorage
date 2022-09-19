@@ -195,10 +195,6 @@ pub fn convert_send_ibc_msg(channel_id: String, packet: PacketMsg, timeout: IbcT
 
 pub fn derive_addr_from_pubkey(pub_key_bytes: &[u8]) -> Result<Addr, ContractError> {
 
-    if pub_key_bytes.len() != 32 {
-        return Err(ContractError::CustomError { val: "PUB_KEY_LENGTH NOT 32".to_string() });
-   }
-
    // derive external address for merkle proof check
     let sha_hash = Sha256::digest(pub_key_bytes);
 

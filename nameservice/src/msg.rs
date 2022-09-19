@@ -14,8 +14,8 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Register { name: String },
     Transfer { name: String, to: String },
-    RegisterTB {name : String, tb_user: String},
-    UpdateTBAddress {address: String}
+    RegisterTb {name : String, tb_user: String},
+    UpdateTbAddress {address: String}
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

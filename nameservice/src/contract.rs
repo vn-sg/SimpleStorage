@@ -40,7 +40,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::Register { name } => execute_register(deps, env, info, name),
         ExecuteMsg::Transfer { name, to } => execute_transfer(deps, env, info, name, to),
-        ExecuteMsg::RegisterTB { name, tb_user } => {
+        ExecuteMsg::RegisterTb { name, tb_user } => {
             let config_state = config(deps.storage).load()?;
             if config_state.trustboost_addr.is_some() {
                 if config_state.trustboost_addr.unwrap() != info.sender {
@@ -56,7 +56,7 @@ pub fn execute(
                 return Err(ContractError::Unauthorized {});
             }
         }
-        ExecuteMsg::UpdateTBAddress {address } =>  {
+        ExecuteMsg::UpdateTbAddress {address } =>  {
             // Only admin can update this check...
             let mut config_state = config(deps.storage).load()?;
             config_state.trustboost_addr = Some(Addr::unchecked(address));

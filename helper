@@ -5,7 +5,9 @@
 #NODE_2=http://127.0.0.1:26557 
 #NODE_3=http://127.0.0.1:26558 
 
-#binary = eyJyZWdpc3RlciI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
+#binary(register) = eyJyZWdpc3RlciI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
+#binary(register_tb) = eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
+
 
 NODE_0=http://127.0.0.1:26657
 NODE_1=http://127.0.0.1:26557
@@ -34,6 +36,10 @@ target=$2
 param1=$3
 param2=$4
 param3=$5
+
+pubkey="[3, 117, 218, 217, 204, 108,  10,167, 180, 109,  53, 118, 212, 125,89, 153, 137, 107, 192, 224, 137,206,  74, 205, 192, 206, 125,  73,150, 179, 250,  70, 243]"
+signature="[244,  60,  19,  30,  60,  31, 121, 112, 100, 181, 197,35, 155, 235,  50, 237, 232, 189, 120, 114,  47,   4,65, 179, 122,  11,  38,  66,  53, 109, 212, 121,  51,41, 183,  65, 250,  44,   2,  78, 154,  82,  12,  82,168, 157, 234, 208, 241, 238, 185, 244,  17,  39,  12,197, 249,  30, 127,  45, 249, 170,  49, 138]"
+
 #node=$(expr 5 + $2)
 #node="http://127.0.0.1:2655$node"
 node="5"
@@ -329,21 +335,23 @@ debugKey3()
 
 debugLock()
 {
+    param1=eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
 debugDone()
 {
+    param1=eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -602,7 +610,7 @@ registerName()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     EXEC_MSG="{\"register\": {\"name\": \"$param1\"}}"
-    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+    wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
 registerNameTB() 
@@ -610,8 +618,8 @@ registerNameTB()
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    EXEC_MSG="{\"register_trust_boost\": {\"name\": \"$param1\"}}"
-    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+    EXEC_MSG='{"register_tb":{"name":"test_from_trustboost_sept","user":"wasm1pfu4h0g9ye26nlm2vay8m747pwc3quhsh5c94p"}}'
+    wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
 
