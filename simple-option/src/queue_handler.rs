@@ -400,14 +400,19 @@ fn handle_done(
 
     //     // TODO! Check signature first before appending address
     //     // DION
-        let mut binary_msg = Binary::from_base64(&val.binary).unwrap();
-        let wasm_msg = WasmMsg::Execute{
-            contract_addr: state.contract_addr.to_string(),
-            msg: binary_msg,
-            funds: vec![]
-        };
-        let sub_msg = SubMsg::reply_always(wasm_msg, 1234);
-        return Ok(vec![sub_msg]);
+        let mut vec_msgs:Vec<SubMsg> = Vec::new();
+        if !state.done_executed {
+            state.done_executed = true;
+            let mut binary_msg = Binary::from_base64(&val.binary).unwrap();
+            let wasm_msg = WasmMsg::Execute{
+                contract_addr: state.contract_addr.to_string(),
+                msg: binary_msg,
+                funds: vec![]
+            };
+            let sub_msg = SubMsg::reply_always(wasm_msg, 1234);    
+            vec_msgs.push(sub_msg)
+        }
+        return Ok(vec_msgs);
     }
     return Ok(Vec::new());
 }
@@ -602,7 +607,6 @@ pub fn receive_queue(
                     }
                 }
             }
-
             //// TESTING ////
             let mut state = STATE.load(store)?;
             state.current_tx_id += 1;
