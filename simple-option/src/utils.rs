@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use cosmwasm_std::{
-    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary, Addr
+    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary, Addr, Binary, Deps, Api
 };
 
 use crate::ibc_msg::{
@@ -14,7 +14,7 @@ use ripemd::{Digest as RipDigest, Ripemd160};
 
 use cw_storage_plus::{Map};
 use crate::state::{
-    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,RECEIVED_DONE
+    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,RECEIVED_DONE, InputType
 };
 
 /// Setting the lifetime of packets to be one hour
@@ -214,4 +214,44 @@ pub fn derive_addr_from_pubkey(pub_key_bytes: &[u8]) -> Result<Addr, ContractErr
 
     let addr = cosmwasm_std::Addr::unchecked(addr);
     Ok(addr)
+}
+
+pub fn append_binary_string(binaryString: String, key: &String, value: &String) -> Binary {
+    let binary = Binary::from_base64(&binaryString).unwrap();;
+    
+    let mut binaryVector = binary.0.to_vec();
+
+    // Pop last two brackets
+    binaryVector.pop();
+    binaryVector.pop();
+
+    binaryVector.push(b',');
+    binaryVector.push(b'"');
+    for elem in key.chars() {
+        binaryVector.push(elem as u8);
+    }
+    binaryVector.push(b'"');
+    binaryVector.push(b':');
+    binaryVector.push(b'"');
+    for elem in value.chars() {
+        binaryVector.push(elem as u8);
+    }
+    binaryVector.push(b'"');
+    binaryVector.push(b'}');
+    binaryVector.push(b'}');
+
+    Binary(binaryVector)
+}
+
+pub fn check_signature(api: &dyn Api, val: InputType) -> bool {
+    let mut result: Vec<bool> = Vec::new();
+
+    // Hashing
+    let hash = Sha256::digest(val.binary);
+
+    // Verification
+    let verify_result = api
+        .secp256k1_verify(hash.as_ref(), &val.signature, &val.public_key);
+
+    verify_result.unwrap()
 }

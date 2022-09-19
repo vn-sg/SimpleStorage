@@ -103,7 +103,8 @@ pub fn execute(
                     Some(local_channel_id),
                     vec![Msg::Key3 { val: val, view: view }],
                     &mut queue,
-                    &env
+                    &env, 
+                    deps.api
                 )?;
             } else {
                 result = receive_queue(
@@ -112,7 +113,8 @@ pub fn execute(
                     None,
                     vec![Msg::Key3 { val: val, view: view }],
                     &mut queue,
-                    &env
+                    &env,
+                    deps.api
                 )?;
             }
 
@@ -133,7 +135,8 @@ pub fn execute(
                     Some(local_channel_id),
                     vec![Msg::Lock { val: val, view: view }],
                     &mut queue,
-                    &env
+                    &env,
+                    deps.api
                 )?;
             } else {
                 result = receive_queue(
@@ -142,7 +145,8 @@ pub fn execute(
                     None,
                     vec![Msg::Lock { val: val, view: view }],
                     &mut queue,
-                    &env
+                    &env,
+                    deps.api
                 )?;
             }
     
@@ -163,7 +167,8 @@ pub fn execute(
                     Some(local_channel_id),
                     vec![Msg::Done { val: val }],
                     &mut queue,
-                    &env
+                    &env,
+                    deps.api
                 )?;
             } else {
                 result = receive_queue(
@@ -172,7 +177,8 @@ pub fn execute(
                     None,
                     vec![Msg::Done { val: val }],
                     &mut queue,
-                    &env
+                    &env,
+                    deps.api
                 )?;
             }
             
@@ -230,7 +236,7 @@ pub fn handle_execute_input(
     STATE.save(deps.storage, &state)?;
 
     // By calling view_change(), Request messages will be delivered to all chains that we established a channel with
-    view_change(deps.storage, timeout.clone(), &env)
+    view_change(deps.storage, timeout.clone(), &env, deps.api)
 
 }
 
@@ -281,7 +287,8 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
                 Some("ABORT_UNUSED_CHANNEL".to_string()),
                 vec![abort_packet.clone()],
                 &mut queue,
-                &env
+                &env,
+                deps.api
             )?;
 
             let sub_msgs = response.messages;

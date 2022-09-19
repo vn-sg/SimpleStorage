@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::vec;
 
 use cosmwasm_std::{
-    IbcTimeout, Response, IbcMsg, Storage, StdResult, Env
+    IbcTimeout, Response, IbcMsg, Storage, StdResult, Env, Api
 };
 
 use crate::ibc_msg::{PacketMsg, Msg};
@@ -14,12 +14,12 @@ use crate::state::{
 use crate::ContractError;
 use crate::utils::{convert_send_ibc_msg};
 
-pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout, env: &Env) -> Result<Response, ContractError> {
+pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout, env: &Env, api: &dyn Api) -> Result<Response, ContractError> {
 
     let state = STATE.load(storage)?;
     let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
 
-    append_queue_view_change(storage, & mut queue, timeout.clone(), env)?;
+    append_queue_view_change(storage, & mut queue, timeout.clone(), env, api)?;
     let msgs = convert_queue_to_ibc_msgs(storage, &queue, timeout.clone())?;
 
 
@@ -37,7 +37,8 @@ pub fn append_queue_view_change(
     storage: &mut dyn Storage,
     queue: &mut Vec<Vec<Msg>>,
     timeout: IbcTimeout,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> Result<(), ContractError> {
     // load the state
     let state = STATE.load(storage)?;
@@ -48,7 +49,7 @@ pub fn append_queue_view_change(
     };
 
     // Send Request to all parties
-    send_all_party(storage, queue, request_packet, timeout.clone(), env)?;
+    send_all_party(storage, queue, request_packet, timeout.clone(), env, api)?;
 
     
     let suggest_packet = Msg::Suggest {
@@ -66,7 +67,7 @@ pub fn append_queue_view_change(
             queue[state.primary as usize].push(suggest_packet);
         }
     } else {
-        receive_queue(storage, timeout.clone(), None, vec![suggest_packet], queue, env)?;
+        receive_queue(storage, timeout.clone(), None, vec![suggest_packet], queue, env, api)?;
     }
 
 
@@ -78,7 +79,7 @@ pub fn append_queue_view_change(
         view: state.view,
     };
     // send_all_upon_join(Proof)
-    send_all_upon_join_queue(storage, queue, proof_packet, timeout.clone(), env)?;
+    send_all_upon_join_queue(storage, queue, proof_packet, timeout.clone(), env, api)?;
     Ok(())
 }
 

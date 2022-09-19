@@ -1,7 +1,8 @@
 
 use cosmwasm_std::{
-    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env, wasm_execute, WasmMsg, Binary, SubMsg
+    StdResult, IbcReceiveResponse, to_binary, IbcMsg, StdError, Storage, IbcTimeout, Env, wasm_execute, WasmMsg, Binary, SubMsg, Api
 };
+use serde_json::to_string;
 
 use std::collections::HashSet;
 use std::convert::TryInto;
@@ -10,7 +11,7 @@ use std::hash::Hash;
 use crate::ContractError;
 use crate::state::{RECEIVED_DONE, InputType, TBInput};
 use crate::utils::{get_id_channel_pair_from_storage, 
-    F, get_chain_id};
+    F, get_chain_id, check_signature, append_binary_string, derive_addr_from_pubkey};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::{state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
@@ -27,7 +28,8 @@ fn handle_propose(
     k: u32, 
     v: InputType,
     view: u32 ,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
 
@@ -54,7 +56,7 @@ fn handle_propose(
             // send_all_upon_join_queue(<echo, k, v, view>)
             if broadcast {
                 let echo_packet = Msg::Echo { val: v, view };
-                send_all_upon_join_queue(store, queue, echo_packet, timeout, env)?;
+                send_all_upon_join_queue(store, queue, echo_packet, timeout, env, api)?;
             }
             // send_all_upon_join_queue(<echo, k, v, view>)/
 
@@ -69,6 +71,7 @@ fn handle_request(
     queue: &mut Vec<Vec<Msg>>,
     view: u32,
     chain_id: u32,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
 
@@ -125,7 +128,8 @@ fn handle_suggest(
     prev_key2: i32,
     key3: u32,
     key3_val: InputType,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let mut state = STATE.load(store)?;
 
@@ -168,7 +172,7 @@ fn handle_suggest(
                     view: state.view,
                 };
                 
-                send_all_upon_join_queue(store, queue, propose_packet, timeout, env)?;
+                send_all_upon_join_queue(store, queue, propose_packet, timeout, env, api)?;
                 /*
 
                 // send_all_upon_join_queue(<propose, k, v, view>)
@@ -214,7 +218,8 @@ fn handle_proof(
     key1_val: InputType,
     prev_key1: i32,
     view: u32,
-    _env: &Env
+    _env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let state = STATE.load(store)?;
     // detect if self-send
@@ -253,13 +258,14 @@ fn handle_echo(
     local_channel_id: Option<String>,
     val: InputType,
     view: u32,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let key1_packet = Msg::Key1 { val: val.clone(), view };
 
     // ignore messages from other views, other than abort, done and request messages
     // if this condition holds, we have received Echo from n - f parties on same val
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone(), env)? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_ECHO, key1_packet.clone(), timeout.clone(), local_channel_id.clone(), env, api)? {
         let mut state = STATE.load(store)?;
         if state.key1_val != val {
             state.prev_key1 = state.key1 as i32;
@@ -280,13 +286,14 @@ fn handle_key1(
     local_channel_id: Option<String>,
     val: InputType,
     view: u32,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
 
  
     // ignore messages from other views, other than abort, done and request messages
     let key2_packet = Msg::Key2 { val: val.clone(), view };
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone(), env)? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY1, key2_packet.clone(), timeout.clone(), local_channel_id.clone(), env, api)? {
         let mut state = STATE.load(store)?;
         if state.key2_val != val {
             state.prev_key2 = state.key2 as i32;
@@ -307,10 +314,11 @@ fn handle_key2(
     local_channel_id: Option<String>,
     val: InputType,
     view: u32,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let key3_packet = Msg::Key3 { val: val.clone(), view };
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone(), env)? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY2, key3_packet.clone(),timeout.clone(), local_channel_id.clone(), env, api)? {
         let mut state = STATE.load(store)?;
         state.key3 = view;
         state.key3_val = val.clone();
@@ -328,12 +336,13 @@ fn handle_key3(
     local_channel_id: Option<String>,
     val: InputType,
     view: u32,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {
     let lock_packet = Msg::Lock { val: val.clone(), view }; 
 
     DEBUG.save(store, 33330, &queue.len().to_string())?;
-    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone(),env)? {
+    if message_transfer_hop(store, val.clone(), view, queue, RECEIVED_KEY3, lock_packet.clone(), timeout.clone(), local_channel_id.clone(),env, api)? {
         let mut state = STATE.load(store)?;
         state.lock = view;
         state.lock_val = val;
@@ -353,13 +362,14 @@ fn handle_lock(
     local_channel_id: Option<String>,
     val: InputType,
     view: u32,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> StdResult<()> {        
     let done_packet = Msg::Done { val: val.clone() };
     // ignore messages from other views, other than abort, done and request messages
     // upon receiving from n - f parties with the same val
     let result = message_transfer_hop(store, val.clone(), view, queue, RECEIVED_LOCK, 
-                                            done_packet.clone(), timeout.clone(), local_channel_id.clone(), env)?;
+                                            done_packet.clone(), timeout.clone(), local_channel_id.clone(), env, api)?;
     // let mut state = STATE.load(store)?;
     // state.sent.insert(done_packet.name().to_string());
     // STATE.save(store, &state)?;
@@ -376,42 +386,34 @@ fn handle_done(
     timeout: IbcTimeout,
     local_channel_id: Option<String>,
     val: InputType,
-    env: &Env
+    env: &Env,
+    api: &dyn Api,
 ) -> Result<Vec<SubMsg>, ContractError> {   
-    let state = STATE.load(store).unwrap();
-    // DEBUG_RECEIVE_MSG.update(store, "handle_done".to_string(), | mut state| -> Result<_, ContractError> {
-    //     match state {
-    //         Some(mut vec) => {
-    //             vec.push(val.clone().binary);
-    //             Ok(vec)
-    //         },
-    //         None => {
-    //             Ok(vec![val.clone().binary])
-    //         }
-    //     }
-    // })?;
+    let mut state = STATE.load(store).unwrap();
 
     // upon receiving from n - f parties with the same val
-    if message_transfer_hop_done(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone(), env).unwrap() {
+    if message_transfer_hop(store, val.clone(), state.view, queue, RECEIVED_DONE, Msg::Done { val: val.clone() }, timeout.clone(), local_channel_id.clone(), env, api).unwrap() {
         // decide and terminate
-        let mut state = STATE.load(store).unwrap();
         state.done = Some(val.clone());
-        STATE.save(store, &state)?;
-
-    //     // TODO! Check signature first before appending address
-    //     // DION
         let mut vec_msgs:Vec<SubMsg> = Vec::new();
-        if !state.done_executed {
+
+        if !state.done_executed && check_signature(api, val.clone()){
+            DEBUG.save(store, 7777777, &"EXECUTED ME HELLO!!!!!".to_string())?;
             state.done_executed = true;
-            let mut binary_msg = Binary::from_base64(&val.binary).unwrap();
+            let address = derive_addr_from_pubkey(&val.public_key).unwrap();
+            let appended_binary = append_binary_string(val.binary, &"user".to_string(), &address.to_string());
+            let stringified_binary = appended_binary.to_string();
+
             let wasm_msg = WasmMsg::Execute{
                 contract_addr: state.contract_addr.to_string(),
-                msg: binary_msg,
+                msg: appended_binary,
                 funds: vec![]
             };
+            DEBUG.save(store, 777777777, &stringified_binary)?;
             let sub_msg = SubMsg::reply_always(wasm_msg, 1234);    
             vec_msgs.push(sub_msg)
         }
+        STATE.save(store, &state)?;
         return Ok(vec_msgs);
     }
     return Ok(Vec::new());
@@ -424,6 +426,7 @@ pub fn receive_queue(
     queue_to_process: Vec<Msg>,
     queue: &mut Vec<Vec<Msg>>,
     env: &Env,
+    api: &dyn Api,
 ) -> StdResult<IbcReceiveResponse> {
     // let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
     if let Some(_) = STATE.load(store)?.done {
@@ -445,7 +448,7 @@ pub fn receive_queue(
                 v,
                 view,
             } => { 
-                handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view, env) 
+                handle_propose(store, queue, timeout.clone(), local_channel_id.clone(), chain_id, k, v, view, env, api) 
             },
             Msg::Request { 
                 view, 
@@ -462,7 +465,7 @@ pub fn receive_queue(
                         }
                     }
                 });                            
-                handle_request(store, queue, view, chain_id)
+                handle_request(store, queue, view, chain_id,api)
             },
             Msg::Suggest {
                 chain_id,
@@ -484,7 +487,7 @@ pub fn receive_queue(
                         }
                     }
                 });                            
-                handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val, env)
+                handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val, env, api)
             },
             Msg::Proof {
                 key1,
@@ -503,7 +506,7 @@ pub fn receive_queue(
                         }
                     }
                 });                            
-                handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view,env)
+                handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view,env,api)
             },
             Msg::Echo { val, view } => { 
                 DEBUG_RECEIVE_MSG.update(store, "handle_echo".to_string(), | mut state| -> Result<_, ContractError> {
@@ -517,13 +520,13 @@ pub fn receive_queue(
                         }
                     }
                 });                            
-                handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env)
+                handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api)
             },
-            Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
-            Msg::Key2 { val, view } => handle_key2(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env),
+            Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api),
+            Msg::Key2 { val, view } => handle_key2(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api),
             Msg::Key3 { val, view } => {
                 handle_key3(
-                    store, queue, timeout.clone(), local_channel_id.clone(), val, view,env
+                    store, queue, timeout.clone(), local_channel_id.clone(), val, view,env, api
             )},
             Msg::Lock { val, view } => {
                 // DEBUG_RECEIVE_MSG.update(store, "handle_lock".to_string(), | mut state| -> Result<_, ContractError> {
@@ -537,16 +540,16 @@ pub fn receive_queue(
                 //         }
                 //     }
                 // });                            
-                handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env)
+                handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api)
             },
             Msg::Done { val } => { 
-                wasm_exec_messages = handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env).unwrap();
+                wasm_exec_messages = handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env,api).unwrap();
                 Ok(())
             }
             Msg::Abort { view, chain_id } => 
             {
                 DEBUG.save(store, 200+chain_id, &"RECEIVED_ABORT".to_string())?;
-                handle_abort(store, queue, view, chain_id, timeout.clone(), env)
+                handle_abort(store, queue, view, chain_id, timeout.clone(), env, api)
             },
         };
         
@@ -559,6 +562,7 @@ pub fn receive_queue(
     let mut state = STATE.load(store)?;
     if let Some(val) = state.done {
         if wasm_exec_messages.len() > 0 {
+            DEBUG.save(store, 88888888, &"EXECUTED ME HELLO OUTSIDE!!!!!".to_string())?;
             res = res.add_submessages(wasm_exec_messages);
         }
     }   
@@ -677,6 +681,7 @@ fn message_transfer_hop(
     timeout: IbcTimeout, 
     channel_id: Option<String>, 
     env: &Env,
+    api: &dyn Api
 ) -> Result<bool, StdError> {
         let state = STATE.load(storage)?;
         // ignore messages from other views, other than abort, done and request messages
@@ -711,7 +716,7 @@ fn message_transfer_hop(
                     let mut state = STATE.load(storage)?;
                     state.sent.insert(msg_to_send.name().to_string());
                     STATE.save(storage, &state)?;
-                    send_all_party(storage, queue, msg_to_send, timeout.clone(), env)?;
+                    send_all_party(storage, queue, msg_to_send, timeout.clone(), env, api)?;
                 }
                 // upon receiving from n - f parties with the same val
                 if set.len() >= (state.n - F).try_into().unwrap() {
@@ -726,10 +731,10 @@ fn message_transfer_hop(
                     STATE.save(storage, &state)?;
                     // if received Lock, ensure we send <done, val> to every party
                     if message_type.namespace() == "received_lock".as_bytes() {
-                        send_all_party(storage, queue, msg_to_send, timeout, env)?;
+                        send_all_party(storage, queue, msg_to_send, timeout, env, api)?;
                         return Ok(true);
                     } else {
-                        send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
+                        send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env, api)?;
                         return Ok(true);    
                     }
                 } else {
@@ -740,83 +745,12 @@ fn message_transfer_hop(
         Ok(false)
     }
 
-fn message_transfer_hop_done(
-        storage: &mut dyn Storage, 
-        val: InputType, 
-        view: u32,
-        queue: &mut Vec<Vec<Msg>>, 
-        message_type: cw_storage_plus::Map<u64, HashSet<u32>>, 
-        msg_to_send: Msg, 
-        timeout: IbcTimeout, 
-        channel_id: Option<String>, 
-        env: &Env,
-    ) -> Result<bool, StdError> {
-            let state = STATE.load(storage)?;
-            // ignore messages from other views, other than abort, done and request messages
-            if view != state.view && message_type.namespace() != "received_done".as_bytes(){
-                DEBUG.save(storage, 0000, &"RECEIVED_DONE_RETURN_FALSE".to_string())?;
-                return Ok(false);
-            }
-            // detect if self-send
-            let chain_id = match channel_id {
-                Some(id) => {
-                    // Get the chain_id of the sender
-                    get_chain_id(storage, id)
-                },
-                None => state.chain_id,
-            };
-            // Initialize local record of messages of type key
-            let action = |set: Option<HashSet<u32>>| -> StdResult<HashSet<u32>> {
-                match set {
-                    Some(set) => Ok(set),
-                    None => Ok(HashSet::new()),
-                }
-            };
-            let val_hash = val.calculate_hash();
-            let mut set = message_type.update(storage, val_hash, action)?;
-            if !set.contains(&chain_id) {
-                set.insert(chain_id);
-                message_type.save(storage, val_hash, &set)?;
-    
-                // If received Done, operate accordingly
-                if message_type.namespace() == "received_done".as_bytes() {
-                    // check if have not sent Done && received from f + 1 parties 
-                    if !state.sent.contains(msg_to_send.name()) && set.len() >= (F + 1).try_into().unwrap() {
-                        let mut state = STATE.load(storage)?;
-                        state.sent.insert(msg_to_send.name().to_string());
-                        STATE.save(storage, &state)?;
-                        send_all_party(storage, queue, msg_to_send, timeout.clone(), env)?;
-                    }
-                    // upon receiving from n - f parties with the same val
-                    if set.len() >= (state.n - F).try_into().unwrap() {
-                        return Ok(true);
-                    }
-                    return Ok(false);
-                }
-                // upon receiving from n - f parties with the same val
-                if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
-                    let mut state = STATE.load(storage)?;
-                    state.sent.insert(msg_to_send.name().to_string());
-                    STATE.save(storage, &state)?;
-                    // if received Lock, ensure we send <done, val> to every party
-                    if message_type.namespace() == "received_lock".as_bytes() {
-                        send_all_party(storage, queue, msg_to_send, timeout, env)?;
-                        return Ok(true);
-                    }
-                    // send_all_upon_join_queue
-                    send_all_upon_join_queue(storage, queue, msg_to_send, timeout, env)?;
-                    return Ok(true);
-                }
-            }
-            Ok(true)
-        }
-
 // send_all_upon_join_queue Operation
-pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet_msg: Msg, timeout: IbcTimeout, env: &Env) -> Result<(), StdError> {
+pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet_msg: Msg, timeout: IbcTimeout, env: &Env, api: &dyn Api) -> Result<(), StdError> {
     let state = STATE.load(storage)?;
     let channel_ids = get_id_channel_pair_from_storage(storage)?;
     // self-send msg
-    receive_queue(storage, timeout, None, vec![packet_msg.clone()], queue, env)?;
+    receive_queue(storage, timeout, None, vec![packet_msg.clone()], queue, env, api)?;
 
     for (chain_id, _channel_id) in &channel_ids {
         let highest_request = HIGHEST_REQ.load(storage, chain_id.clone())?;
@@ -841,10 +775,10 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<M
     Ok(())
 }
 
-pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet: Msg, timeout: IbcTimeout, env: &Env) -> Result<(), StdError> {
+pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet: Msg, timeout: IbcTimeout, env: &Env, api: &dyn Api) -> Result<(), StdError> {
     let channel_ids = get_id_channel_pair_from_storage(store)?;
     // self-send msg
-    receive_queue(store, timeout, None, vec![packet.clone()], queue, env)?;
+    receive_queue(store, timeout, None, vec![packet.clone()], queue, env, api)?;
 
     for (chain_id, _channel_id) in &channel_ids {
         queue[*chain_id as usize].push(packet.clone());

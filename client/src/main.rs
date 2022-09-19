@@ -100,14 +100,50 @@ fn main() {
     }
 
     //eyJyZWdpc3RlciI6eyJuYW1lIjoidGVzdF9mcm9tX2NsaWVudCJ9fQ==
-
+    println!();
     println!("Reverse_binary");
 
-    let reverse_binary = binary_result.0.to_vec();
-    let reverse_binary = Binary(reverse_binary);
+    let mut reverse_binary_vector = binary_result.0.to_vec();
 
-    println!("reverse_binary {}", reverse_binary);
+    println!("reverse_binary_vector {:?}", reverse_binary_vector);
+    let reverse_binary = Binary(reverse_binary_vector);
     
+    let reverse_binary_string = reverse_binary.to_string();
+    println!("reverse_binary_string {}", reverse_binary_string);
+
+    let appended = append_binary_string(reverse_binary_string, &"user".to_string(), &"ASDF".to_string());
+
+    println!("appended_binary_string {}", appended);
+
+
+}
+
+
+fn append_binary_string(binary_string: String, key: &String, value: &String) -> Binary {
+    let binary = Binary::from_base64(&binary_string).unwrap();;
+    
+    let mut binary_vector = binary.0.to_vec();
+
+    // Pop last two brackets
+    binary_vector.pop();
+    binary_vector.pop();
+
+    binary_vector.push(b',');
+    binary_vector.push(b'"');
+    for elem in key.chars() {
+        binary_vector.push(elem as u8);
+    }
+    binary_vector.push(b'"');
+    binary_vector.push(b':');
+    binary_vector.push(b'"');
+    for elem in value.chars() {
+        binary_vector.push(elem as u8);
+    }
+    binary_vector.push(b'"');
+    binary_vector.push(b'}');
+    binary_vector.push(b'}');
+
+    Binary(binary_vector)
 }
 
 

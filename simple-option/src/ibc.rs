@@ -129,7 +129,7 @@ pub fn ibc_packet_receive(
             {
                 let state = STATE.load(deps.storage)?;
                 let mut queue: Vec<Vec<Msg>> = vec!(Vec::new(); state.n.try_into().unwrap());
-                let result = receive_queue(deps.storage, get_timeout(&env), Some(dest_channel_id), q, &mut queue, &env);
+                let result = receive_queue(deps.storage, get_timeout(&env), Some(dest_channel_id), q, &mut queue, &env, deps.api);
                 IBC_MSG_SEND_DEBUG.save(deps.storage, "ibc_packet_receive".to_string(), &result.as_ref().unwrap().messages)?;
                 return result;
             },

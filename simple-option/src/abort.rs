@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    StdResult, Order, StdError, Storage, IbcTimeout, Env
+    StdResult, Order, StdError, Storage, IbcTimeout, Env, Api
 };
 
 use crate::utils::{F, get_id_channel_pair_from_storage};
@@ -22,6 +22,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
                     queue: &mut Vec<Vec<Msg>>, view: u32, 
                     sender_chain_id: u32, timeout: IbcTimeout,
                     env: &Env,
+                    api: &dyn Api,
                     ) -> Result<(), StdError> {
     let mut state = STATE.load(storage)?;
     
@@ -112,7 +113,7 @@ pub fn handle_abort(storage: &mut dyn Storage,
                     }
                 }         
                 
-                let result = append_queue_view_change(storage, queue, timeout, env);
+                let result = append_queue_view_change(storage, queue, timeout, env, api);
                 match result {
                     Ok(_) => {
 
