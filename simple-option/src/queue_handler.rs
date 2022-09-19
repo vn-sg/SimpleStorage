@@ -401,7 +401,7 @@ fn handle_done(
             DEBUG.save(store, 7777777, &"EXECUTED ME HELLO!!!!!".to_string())?;
             state.done_executed = true;
             let address = derive_addr_from_pubkey(&val.public_key).unwrap();
-            let appended_binary = append_binary_string(val.binary, &"user".to_string(), &address.to_string());
+            let appended_binary = append_binary_string(val.binary, &"tb_user".to_string(), &address.to_string());
             let stringified_binary = appended_binary.to_string();
 
             let wasm_msg = WasmMsg::Execute{

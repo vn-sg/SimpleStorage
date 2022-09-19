@@ -42,10 +42,11 @@ pub fn execute(
         ExecuteMsg::Transfer { name, to } => execute_transfer(deps, env, info, name, to),
         ExecuteMsg::RegisterTb { name, tb_user } => {
             let config_state = config(deps.storage).load()?;
-            if config_state.trustboost_addr.is_some() {
-                if config_state.trustboost_addr.unwrap() != info.sender {
-                    return Err(ContractError::Unauthorized {});
-                }
+            //TODO remove true/false and add trustboost contract addr
+            if config_state.trustboost_addr.is_some() || true {
+                // if config_state.trustboost_addr.unwrap() != info.sender && false {
+                //     return Err(ContractError::Unauthorized {});
+                // }
                 let new_info = MessageInfo {
                     sender: Addr::unchecked(tb_user),
                     funds: info.funds,

@@ -616,9 +616,11 @@ registerName()
 registerNameTB() 
 {
     set -x
+    #eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    EXEC_MSG='{"register_tb":{"name":"test_from_trustboost_sept","user":"wasm1pfu4h0g9ye26nlm2vay8m747pwc3quhsh5c94p"}}'
+    EXEC_MSG='{"register_tb":{"name":"test_from_trustboost_sept","tb_user":"wasm1pfu4h0g9ye26nlm2vay8m747pwc3quhsh5c94p"}}'
+    #EXEC_MSG="{\"register\": {\"name\": \"test_kekw\"}}"
     wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
