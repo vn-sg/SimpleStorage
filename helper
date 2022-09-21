@@ -297,11 +297,13 @@ deployNSAll()
 
 input() 
 {
+    param1=eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
     set -x
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
     EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}}}"
+    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
