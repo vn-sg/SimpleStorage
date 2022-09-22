@@ -364,19 +364,37 @@ fn handle_lock(
     view: u32,
     env: &Env,
     api: &dyn Api,
-) -> StdResult<()> {        
+) -> Result<Vec<SubMsg>, ContractError> {        
     let done_packet = Msg::Done { val: val.clone() };
     // ignore messages from other views, other than abort, done and request messages
     // upon receiving from n - f parties with the same val
     let result = message_transfer_hop(store, val.clone(), view, queue, RECEIVED_LOCK, 
                                             done_packet.clone(), timeout.clone(), local_channel_id.clone(), env, api)?;
-    // let mut state = STATE.load(store)?;
-    // state.sent.insert(done_packet.name().to_string());
-    // STATE.save(store, &state)?;
+
+    // handle self-execute done
+    // Since 
+    if result {
+        let mut vec_msgs:Vec<SubMsg> = Vec::new();
+        let mut state = STATE.load(store).unwrap();
+        if state.done.is_some() && !state.done_executed && check_signature(api, val.clone()){
+            let address = derive_addr_from_pubkey(&val.public_key).unwrap();
+            let appended_binary = append_binary_string(val.binary, &"tb_user".to_string(), &address.to_string());
+            let stringified_binary = appended_binary.to_string();
+            let wasm_msg = WasmMsg::Execute{
+                contract_addr: state.contract_addr.to_string(),
+                msg: appended_binary,
+                funds: vec![]
+            };
+            let sub_msg: SubMsg = SubMsg::reply_always(wasm_msg, 1234);    
+            state.done_executed = true;
+            STATE.save(store, &state)?;
+            vec_msgs.push(sub_msg);
+            return Ok(vec_msgs);    
+        }
+    }
 
     // send_all_party(store, queue, done_packet, timeout.clone())?;
-    Ok(())
-
+    return Ok(Vec::new());
 }
 
 // Handle Done
@@ -397,7 +415,8 @@ fn handle_done(
         state.done = Some(val.clone());
         let mut vec_msgs:Vec<SubMsg> = Vec::new();
 
-        if !state.done_executed && check_signature(api, val.clone()){
+        // Only handle if it is not self send..., self send case is handled in handle_lock...
+        if !local_channel_id.is_none() && !state.done_executed && check_signature(api, val.clone()){
             DEBUG.save(store, 7777777, &"EXECUTED ME HELLO!!!!!".to_string())?;
             state.done_executed = true;
             let address = derive_addr_from_pubkey(&val.public_key).unwrap();
@@ -540,7 +559,8 @@ pub fn receive_queue(
                 //         }
                 //     }
                 // });                            
-                handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api)
+                wasm_exec_messages = handle_lock(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api).unwrap();
+                Ok(())
             },
             Msg::Done { val } => { 
                 wasm_exec_messages = handle_done(store, queue, timeout.clone(), local_channel_id.clone(), val,env,api).unwrap();
