@@ -2,8 +2,8 @@
     "type": "cosmos",
     "value": {
       "key": "testkey",
-      "chain-id": "ibc-2",
-      "rpc-addr": "http://localhost:26552",
+      "chain-id": "ibc-7",
+      "rpc-addr": "http://localhost:26557",
       "grpc-addr": "",
       "account-prefix": "wasm",
       "keyring-backend": "test",

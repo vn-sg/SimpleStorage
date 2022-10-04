@@ -8,11 +8,12 @@
 #binary(register) = eyJyZWdpc3RlciI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
 #binary(register_tb) = eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
 
+node_prefix=http://127.0.0.1:2655 #+ port number in the end
+NODE_0=http://127.0.0.1:26550
+NODE_1=http://127.0.0.1:26551
+NODE_2=http://127.0.0.1:26552
+NODE_3=http://127.0.0.1:26553
 
-NODE_0=http://127.0.0.1:26657
-NODE_1=http://127.0.0.1:26557
-NODE_2=http://127.0.0.1:25557
-NODE_3=http://127.0.0.1:24557
 
 KEYRING_0='--keyring-backend test --keyring-dir ./data/ibc-0'
 KEYRING_1='--keyring-backend test --keyring-dir ./data/ibc-1'
@@ -32,7 +33,7 @@ INSTANTIATE_MSG_CHAIN1="{\"chain_id\": 1,\"input\": {\"binary\": \"f\",\"public_
 INSTANTIATE_MSG_CHAIN2="{\"chain_id\": 2,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
 INSTANTIATE_MSG_CHAIN3="{\"chain_id\": 3,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
 
-target=$2
+target=$2 # node number, target chain
 param1=$3
 param2=$4
 param3=$5
@@ -40,24 +41,12 @@ param3=$5
 pubkey="[3, 117, 218, 217, 204, 108,  10,167, 180, 109,  53, 118, 212, 125,89, 153, 137, 107, 192, 224, 137,206,  74, 205, 192, 206, 125,  73,150, 179, 250,  70, 243]"
 signature="[244,  60,  19,  30,  60,  31, 121, 112, 100, 181, 197,35, 155, 235,  50, 237, 232, 189, 120, 114,  47,   4,65, 179, 122,  11,  38,  66,  53, 109, 212, 121,  51,41, 183,  65, 250,  44,   2,  78, 154,  82,  12,  82,168, 157, 234, 208, 241, 238, 185, 244,  17,  39,  12,197, 249,  30, 127,  45, 249, 170,  49, 138]"
 
-#node=$(expr 5 + $2)
-#node="http://127.0.0.1:2655$node"
-node="5"
-
-if [ $2 = 0 ]; then
-    node=$NODE_0
-elif [ $2 = 1 ]; then
-    node=$NODE_1
-elif [ $2 = 2 ]; then
-    node=$NODE_2
-else
-    node=$NODE_0
-fi
-
-
-#node+="57"
+# -------- TARGET_PARAMS ------- #
 keyring="--keyring-backend test --keyring-dir ./data/ibc-$target"
 chain="ibc-$2"
+node=http://127.0.0.1:2655$2
+# -------- TARGET_PARAMS ------- #
+
 
 listKeys()
 {
@@ -179,6 +168,140 @@ deployAll()
 
 
     echo -e $out > out.log
+}
+
+deployNSMany()
+{
+    end_index=$(expr $target - 1)
+    set -e
+    for k in $(seq 0 $end_index)
+    do
+        privateDeployNS $k
+    done
+}
+
+deployMany() 
+{
+    end_index=$(expr $target - 1)
+
+    set -e
+    cd ./simple-option/
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cd ..
+
+    # deploying all...
+    for k in $(seq 0 $end_index)
+    do
+        privateDeployOne $k
+    done
+
+    echo "deploying done.... wait 3 seconds for things to be commited...."
+    sleep 3 
+    echo "starting linking...."
+
+    # creating links...
+    for i in $(seq 0 $end_index)
+    do
+        start_index=$(expr $i + 1)
+        # zsh will overshoot indexes
+        if [ $start_index -gt $end_index ]; then
+            break
+        fi
+
+        for j in $(seq $start_index $end_index)
+        do 
+            set -e
+            privateCreateLink $i $j
+        done
+    done 
+
+    echo "deploy and linking all done...."
+}
+
+
+privateDeployOne()
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    user="USER"
+
+
+    file="simple-option/target/wasm32-unknown-unknown/release/simple_option.wasm"
+    set -x
+    wasmd tx wasm store $file --node $node --from $user --chain-id $chain --gas-prices "0.025stake" --gas auto --gas-adjustment 1.5 --broadcast-mode block -y $keyring
+    set +x
+
+    # get code id of deployed contract and
+    # instantiate contract and get address of the instantiated contract
+    init_msg="{\"chain_id\": $1,\"input\": {\"binary\": \"f\",\"public_key\": [], \"signature\": []}, \"contract_addr\": \"$NS_CONTRACT_ADDRESS\"}"
+
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    wasmd tx wasm instantiate $code_id "$init_msg" --node $node --from $user --chain-id $chain $GAS_FLAG -y --label "simplestorage" --no-admin $keyring
+}
+
+privateCreateLink()
+{
+    set -e
+
+    echo "Creating link $1-$2"
+    src=$1
+    chain_id_src="ibc-$1"
+    dest=$2
+    chain_id_dest="ibc-$2"
+    node_src=http://127.0.0.1:2655$1
+    node_dest=http://127.0.0.1:2655$2
+    keyring_src="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    keyring_dest="--keyring-backend test --keyring-dir ./data/ibc-$2"
+    user="USER"
+
+    code_id_src=$(wasmd query wasm list-code --node $node_src --output json | jq -r ".code_infos[-1] | .code_id")
+    code_id_dest=$(wasmd query wasm list-code --node $node_dest --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address_src=$(wasmd query wasm list-contract-by-code $code_id_src --node $node_src --output json | jq -r '.contracts[-1]')
+    contract_address_dest=$(wasmd query wasm list-contract-by-code $code_id_dest --node $node_dest --output json | jq -r '.contracts[-1]')
+
+    ibc_port_src=$(wasmd query wasm contract $contract_address_src --node $node_src --output --json | jq -r '.contract_info | .ibc_port_id')
+    ibc_port_dest=$(wasmd query wasm contract $contract_address_dest --node $node_dest --output --json | jq -r '.contract_info | .ibc_port_id')
+
+
+    link="mypath$1-$2"
+    rly tx link $link --src-port $ibc_port_src --dst-port $ibc_port_dest --order ordered --version trustboost-test 
+}
+
+privateDeployNS() 
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    init='{"count": 1}'
+    user="USER"
+
+    set -e
+    set -x
+    cd ./nameservice/
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cd ..
+
+    file="nameservice/target/wasm32-unknown-unknown/release/cw_nameservice.wasm"
+    wasmd tx wasm store $file --node $node --from $user --chain-id $chain --gas-prices "0.025stake" --gas auto --gas-adjustment 1.5 --broadcast-mode block -y $keyring
+
+    # get code id of deployed contract and
+    # instantiate contract and get address of the instantiated contract
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    wasmd tx wasm instantiate $code_id "$INSTANTIATE_MSG_CHAIN0" --node $node --from $user --chain-id $chain $GAS_FLAG -y --label "nameservice" --no-admin $keyring
+    # wait 2 secs for the contract to be deployed properly
+    sleep 2
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+
+    if [ -z $contract_address ]; then
+        echo "retrying getting contract address...."
+        sleep 2
+        contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    fi
+
+    ibc_port=$(wasmd query wasm contract $contract_address --node $node --output --json | jq -r '.contract_info | .ibc_port_id')
+    set +x
+    echo "Deployed with code id $code_id on Node 0 Contract Address = $contract_address ibc_port = $ibc_port"
 }
 
 deployOne()
@@ -657,10 +780,6 @@ getAddress()
     wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
 }
 
-
-
-
-
 listChannels() 
 {
     set -x
@@ -695,6 +814,9 @@ elif [ $1 = "deployOne" ]; then
 elif [ $1 = "deployns" ]; then
     deployns
     exit 0
+elif [ $1 = "deployNSMany" ]; then
+    deployNSMany
+    exit 0
 elif [ $1 = "deployNSAll" ]; then
     deployNSAll
     exit 0
@@ -719,6 +841,10 @@ elif [ $1 = "listChannels" ]; then
     listChannels
 elif [ $1 = "setUV" ]; then
     setUV
+elif [ $1 = "deployNSMany" ]; then
+    deployNSMany
+elif [ $1 = "deployMany" ]; then
+    deployMany
 elif [ $1 = "queryUV" ] || [ $1 = "getUV" ]; then
     queryUV
 elif [ $1 = "queryCV" ]  || [ $1 = "getCV" ]; then
