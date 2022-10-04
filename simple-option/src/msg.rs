@@ -76,7 +76,10 @@ pub enum StateResponse {
         state: State
     },
     Done {
-        decided_val: InputType
+        decided_val: String,
+        decided_timestamp: Option<Timestamp>,
+        block_height: Option<u64>,
+        start_time: Timestamp,
     }
 }
 

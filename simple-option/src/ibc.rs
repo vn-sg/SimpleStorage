@@ -14,7 +14,7 @@ use crate::ibc_msg::{
 use crate::state::{
     CHANNELS, STATE, HIGHEST_ABORT, IBC_MSG_SEND_DEBUG, InputType,
 };
-use crate::utils::{get_timeout, F};
+use crate::utils::{get_timeout};
 use crate::queue_handler::{receive_queue};
 
 #[entry_point]
@@ -458,7 +458,7 @@ fn _open_lock(deps: &DepsMut, proofs: Vec<(u32, InputType, i32)>) -> StdResult<b
             supporting += 1;
         }
     }
-    if supporting >= F + 1 {
+    if supporting >= (state.F + 1) {
         Ok(true)
     } else {
         Ok(false)

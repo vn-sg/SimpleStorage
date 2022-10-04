@@ -10,8 +10,7 @@ use std::hash::Hash;
 
 use crate::ContractError;
 use crate::state::{RECEIVED_DONE, InputType, TBInput};
-use crate::utils::{get_id_channel_pair_from_storage, 
-    F, get_chain_id, check_signature, append_binary_string, derive_addr_from_pubkey};
+use crate::utils::{get_id_channel_pair_from_storage, get_chain_id, check_signature, append_binary_string, derive_addr_from_pubkey};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::{state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
@@ -160,7 +159,7 @@ fn handle_suggest(
             }
 
             // Check if |suggestions| >= n - f
-            if !state.sent.contains("Propose") && state.suggestions.len() >= (state.n - F) as usize {
+            if !state.sent.contains("Propose") && state.suggestions.len() >= (state.n - state.F) as usize {
                 state.sent.insert("Propose".to_string());
                 STATE.save(store, &state)?;
                 // Retrive the entry with the largest k
@@ -422,6 +421,8 @@ fn handle_done(
             let address = derive_addr_from_pubkey(&val.public_key).unwrap();
             let appended_binary = append_binary_string(val.binary, &"tb_user".to_string(), &address.to_string());
             let stringified_binary = appended_binary.to_string();
+            state.done_timestamp = Some(env.block.time);
+            state.done_block_height = Some(env.block.height);
 
             let wasm_msg = WasmMsg::Execute{
                 contract_addr: state.contract_addr.to_string(),
@@ -473,17 +474,6 @@ pub fn receive_queue(
                 view, 
                 chain_id 
             } => {
-                DEBUG_RECEIVE_MSG.update(store, "handle_request".to_string(), | mut state| -> Result<_, ContractError> {
-                    match state {
-                        Some(mut vec) => {
-                            vec.push(chain_id.to_string() + &view.to_string());
-                            Ok(vec)
-                        },
-                        None => {
-                            Ok(vec![chain_id.to_string() + &view.to_string()])
-                        }
-                    }
-                });                            
                 handle_request(store, queue, view, chain_id,api)
             },
             Msg::Suggest {
@@ -495,17 +485,6 @@ pub fn receive_queue(
                 key3,
                 key3_val,
             } => { 
-                DEBUG_RECEIVE_MSG.update(store, "handle_suggest".to_string(), | mut state| -> Result<_, ContractError> {
-                    match state {
-                        Some(mut vec) => {
-                            vec.push(key2_val.clone().binary);
-                            Ok(vec)
-                        },
-                        None => {
-                            Ok(vec![key2_val.clone().binary])
-                        }
-                    }
-                });                            
                 handle_suggest(store, queue, timeout.clone(), chain_id,view, key2, key2_val, prev_key2, key3, key3_val, env, api)
             },
             Msg::Proof {
@@ -514,31 +493,9 @@ pub fn receive_queue(
                 prev_key1,
                 view,
             } => { 
-                DEBUG_RECEIVE_MSG.update(store, "handle_proof".to_string(), | mut state| -> Result<_, ContractError> {
-                    match state {
-                        Some(mut vec) => {
-                            vec.push(key1_val.clone().binary);
-                            Ok(vec)
-                        },
-                        None => {
-                            Ok(vec![key1_val.clone().binary])
-                        }
-                    }
-                });                            
                 handle_proof(store, local_channel_id.clone(), key1, key1_val, prev_key1, view,env,api)
             },
             Msg::Echo { val, view } => { 
-                DEBUG_RECEIVE_MSG.update(store, "handle_echo".to_string(), | mut state| -> Result<_, ContractError> {
-                    match state {
-                        Some(mut vec) => {
-                            vec.push(val.clone().binary);
-                            Ok(vec)
-                        },
-                        None => {
-                            Ok(vec![val.clone().binary])
-                        }
-                    }
-                });                            
                 handle_echo(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api)
             },
             Msg::Key1 { val, view } => handle_key1(store, queue, timeout.clone(), local_channel_id.clone(), val, view,env,api),
@@ -684,7 +641,7 @@ fn open_lock(store: &mut dyn Storage, proofs: Vec<(u32, InputType, i32)>) -> Std
             supporting += 1;
         }
     }
-    if supporting >= F + 1 {
+    if supporting >= (state.F + 1) {
         Ok(true)
     } else {
         Ok(false)
@@ -732,14 +689,14 @@ fn message_transfer_hop(
             // If received Done, operate accordingly
             if message_type.namespace() == "received_done".as_bytes() {
                 // check if have not sent Done && received from f + 1 parties 
-                if !state.sent.contains(msg_to_send.name()) && set.len() >= (F + 1).try_into().unwrap() {
+                if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.F + 1).try_into().unwrap() {
                     let mut state = STATE.load(storage)?;
                     state.sent.insert(msg_to_send.name().to_string());
                     STATE.save(storage, &state)?;
                     send_all_party(storage, queue, msg_to_send, timeout.clone(), env, api)?;
                 }
                 // upon receiving from n - f parties with the same val
-                if set.len() >= (state.n - F).try_into().unwrap() {
+                if set.len() >= (state.n - state.F).try_into().unwrap() {
                     return Ok(true);
                 }
                 return Ok(false);

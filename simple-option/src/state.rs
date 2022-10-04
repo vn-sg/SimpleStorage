@@ -64,6 +64,8 @@ pub struct State {
     pub start_time: Timestamp,
     pub contract_addr: Addr,
     pub done_executed:bool,
+    pub done_timestamp: Option<Timestamp>,
+    pub done_block_height: Option<u64>,
 
 }
 
@@ -99,6 +101,9 @@ impl State {
             start_time,
             contract_addr,
             done_executed: false,
+            done_timestamp: None,
+            done_block_height: None,
+            n: 0,
         }
     }
     pub(crate) fn re_init(&mut self, input: InputType, start_time: Timestamp) -> () {
@@ -132,9 +137,13 @@ impl State {
         // reset values
         self.received_propose = false;
         self.done_executed = false;
+        self.done_timestamp = None;
+        self.done_block_height = None;
+        self.F = (self.n-1)/2;
         ()
 
     }
+
 
 }
 

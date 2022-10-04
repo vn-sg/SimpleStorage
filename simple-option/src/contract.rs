@@ -376,7 +376,12 @@ fn query_done(deps: Deps) -> StdResult<DoneQueryResponse> {
 fn query_state(deps: Deps) -> StdResult<StateResponse> {
     let state = STATE.load(deps.storage)?;
     Ok(match state.done {
-        Some(val) => StateResponse::Done { decided_val: val },
+        Some(val) => StateResponse::Done { 
+            decided_val: val.binary,
+            decided_timestamp: state.done_timestamp,
+            block_height: state.done_block_height,
+            start_time: state.start_time,
+        },
         None => StateResponse::InProgress { state },
     })
 }
