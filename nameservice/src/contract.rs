@@ -56,12 +56,17 @@ pub fn execute(
                 // This message can only be executed by trustboost smart contract
                 return Err(ContractError::Unauthorized {});
             }
-        }
+        },
         ExecuteMsg::UpdateTbAddress {address } =>  {
             // Only admin can update this check...
             let mut config_state = config(deps.storage).load()?;
             config_state.trustboost_addr = Some(Addr::unchecked(address));
             config(deps.storage).save(&config_state)?;            
+            Ok(Response::new())
+        },
+        ExecuteMsg::DeleteAllRecords {name} =>  {
+            let key = name.as_bytes();
+            resolver(deps.storage).remove(key);
             Ok(Response::new())
         }
     }
@@ -69,7 +74,7 @@ pub fn execute(
 
 pub fn execute_register(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     name: String,
 ) -> Result<Response, ContractError> {
@@ -81,7 +86,7 @@ pub fn execute_register(
     // assert_sent_sufficient_coin(&info.funds, config_state.purchase_price)?;
 
     let key = name.as_bytes();
-    let record = NameRecord { owner: info.sender };
+    let record = NameRecord { owner: info.sender, timestamp: env.block.time};
 
     if (resolver(deps.storage).may_load(key)?).is_some() {
         // name is already taken
@@ -132,11 +137,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_resolver(deps: Deps, _env: Env, name: String) -> StdResult<Binary> {
     let key = name.as_bytes();
 
-    let address = match resolver_read(deps.storage).may_load(key)? {
-        Some(record) => Some(String::from(&record.owner)),
-        None => None,
+    let record = match resolver_read(deps.storage).may_load(key)? {
+        Some(record) => (Some(String::from(&record.owner)), Some((record.timestamp))),
+        None => (None, None)
     };
-    let resp = ResolveRecordResponse { address };
+    let resp = ResolveRecordResponse { address: record.0, timestamp: record.1 };
 
     to_binary(&resp)
 }

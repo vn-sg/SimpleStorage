@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Addr};
+use cosmwasm_std::{Coin, Addr, Timestamp};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,8 @@ pub enum ExecuteMsg {
     Register { name: String },
     Transfer { name: String, to: String },
     RegisterTb {name : String, tb_user: String},
-    UpdateTbAddress {address: String}
+    UpdateTbAddress {address: String},
+    DeleteAllRecords {name: String},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -30,4 +31,5 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ResolveRecordResponse {
     pub address: Option<String>,
+    pub timestamp: Option<Timestamp>,
 }

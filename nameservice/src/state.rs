@@ -6,9 +6,13 @@ use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
     Singleton,
 };
+use cosmwasm_std::{Timestamp};
+
 
 pub static NAME_RESOLVER_KEY: &[u8] = b"nameresolver";
 pub static CONFIG_KEY: &[u8] = b"config";
+pub static NAME_RESOLVER_TIMESTAMP: &[u8] = b"timestamp";
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -28,7 +32,9 @@ pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<Config> {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct NameRecord {
     pub owner: Addr,
+    pub timestamp: Timestamp,
 }
+
 
 pub fn resolver(storage: &mut dyn Storage) -> Bucket<NameRecord> {
     bucket(storage, NAME_RESOLVER_KEY)
