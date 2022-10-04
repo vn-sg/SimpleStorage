@@ -796,6 +796,49 @@ triggerDone2()
 }
 
 
+resetMany() 
+{
+    end_index=$(expr $target - 1)
+    for k in $(seq 0 $end_index)
+    do
+        privateResetTBOne $k
+        privateResetNSOne $k
+    done
+
+    privateResetTBOne 1
+
+}
+
+privateResetTBOne() 
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    init='{"count": 1}'
+    user="USER"
+
+    set -x
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    EXEC_MSG="{ \"pre_input\" : { \"value\" :{ \"binary\" : \"PRE_INPUT\",\"public_key\" : [], \"signature\" : []}}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+
+}
+
+privateResetNSOne() 
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    init='{"count": 1}'
+    user="USER"
+
+    set -x
+    EXEC_MSG='{ "trigger": { "behavior": "done_2"} }'
+    wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+}
+
+
 if [ -z $1 ]; then
     echo "Need Param 1 what to do"
     exit 1

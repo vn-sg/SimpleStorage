@@ -66,7 +66,7 @@ pub struct State {
     pub done_executed:bool,
     pub done_timestamp: Option<Timestamp>,
     pub done_block_height: Option<u64>,
-
+    pub F: u32,
 }
 
 impl State {
@@ -103,7 +103,7 @@ impl State {
             done_executed: false,
             done_timestamp: None,
             done_block_height: None,
-            n: 0,
+            F: 0,
         }
     }
     pub(crate) fn re_init(&mut self, input: InputType, start_time: Timestamp) -> () {

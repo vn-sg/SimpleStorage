@@ -197,94 +197,94 @@ pub fn ibc_packet_timeout(
 
 
 
-pub fn receive_done(
-    _deps: DepsMut,
-    _val: String,
-) -> StdResult<IbcReceiveResponse> {
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(DoneResponse { }))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_done"))  
-}
+// pub fn receive_done(
+//     _deps: DepsMut,
+//     _val: String,
+// ) -> StdResult<IbcReceiveResponse> {
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(DoneResponse { }))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_done"))  
+// }
 
-pub fn receive_lock(
-    _deps: DepsMut,
-    _val: String,
-    _view: u32,
-) -> StdResult<IbcReceiveResponse> {
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(LockResponse { }))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_lock"))  
-}
+// pub fn receive_lock(
+//     _deps: DepsMut,
+//     _val: String,
+//     _view: u32,
+// ) -> StdResult<IbcReceiveResponse> {
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(LockResponse { }))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_lock"))  
+// }
 
-pub fn receive_key3(
-    _deps: DepsMut,
-    _val: String,
-    _view: u32,
-) -> StdResult<IbcReceiveResponse> {
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key3Response { }))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_key3"))  
-}
+// pub fn receive_key3(
+//     _deps: DepsMut,
+//     _val: String,
+//     _view: u32,
+// ) -> StdResult<IbcReceiveResponse> {
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key3Response { }))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_key3"))  
+// }
 
-pub fn receive_key2(
-    _deps: DepsMut,
-    _val: String,
-    _view: u32,
-) -> StdResult<IbcReceiveResponse> {
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key2Response { }))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_key2"))  
-}
+// pub fn receive_key2(
+//     _deps: DepsMut,
+//     _val: String,
+//     _view: u32,
+// ) -> StdResult<IbcReceiveResponse> {
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key2Response { }))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_key2"))  
+// }
 
-pub fn receive_key1(
-    _deps: DepsMut,
-    _val: String,
-    _view: u32,
-) -> StdResult<IbcReceiveResponse> {
+// pub fn receive_key1(
+//     _deps: DepsMut,
+//     _val: String,
+//     _view: u32,
+// ) -> StdResult<IbcReceiveResponse> {
 
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key1Response { }))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_key1"))   
-}
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(Key1Response { }))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_key1"))   
+// }
 
-pub fn receive_echo(
-    _deps: DepsMut,
-    _val: String,
-    _view: u32,
-) -> StdResult<IbcReceiveResponse> {
+// pub fn receive_echo(
+//     _deps: DepsMut,
+//     _val: String,
+//     _view: u32,
+// ) -> StdResult<IbcReceiveResponse> {
 
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(EchoResponse { }))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_echo"))
-}
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(EchoResponse { }))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_echo"))
+// }
 
-pub fn receive_proof(
-    deps: DepsMut,
-    _k1: u32,
-    _key1_val: String,
-    _pk1: i32,
-    _view: u32,
-) -> StdResult<IbcReceiveResponse> {
-    let mut state = STATE.load(deps.storage)?;
-    state.current_tx_id += 10;
-    STATE.save(deps.storage, &state)?;
-    // if view > k1 && k1 as i32 > pk1 && RECEIVED_PROOF.load(deps.storage, k)? {
-        // Get the chain_id of the sender
-        // let chain_id = CHANNELS.range(&deps.storage, min, max, order)
+// pub fn receive_proof(
+//     deps: DepsMut,
+//     _k1: u32,
+//     _key1_val: String,
+//     _pk1: i32,
+//     _view: u32,
+// ) -> StdResult<IbcReceiveResponse> {
+//     let mut state = STATE.load(deps.storage)?;
+//     state.current_tx_id += 10;
+//     STATE.save(deps.storage, &state)?;
+//     // if view > k1 && k1 as i32 > pk1 && RECEIVED_PROOF.load(deps.storage, k)? {
+//         // Get the chain_id of the sender
+//         // let chain_id = CHANNELS.range(&deps.storage, min, max, order)
 
-    // } 
-    let response = ProofResponse {};
-    let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
-    Ok(IbcReceiveResponse::new()
-        .set_ack(acknowledgement)
-        .add_attribute("action", "receive_proof"))
-}
+//     // } 
+//     let response = ProofResponse {};
+//     let acknowledgement = to_binary(&AcknowledgementMsg::Ok(response))?;
+//     Ok(IbcReceiveResponse::new()
+//         .set_ack(acknowledgement)
+//         .add_attribute("action", "receive_proof"))
+// }
 
 
 /*
@@ -409,20 +409,20 @@ pub fn receive_suggest(
 }
 */
 
-fn _accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool {
-    let mut supporting = 0;
-    for (k, v, pk) in proofs {
-        if (key as i32) < pk {
-            supporting += 1;
-        } else if key <= k && value == v {
-            supporting += 1;
-        }
-    }
-    if supporting >= 1 + 1 {
-        return true;
-    }
-    false
-}
+// fn _accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool {
+//     let mut supporting = 0;
+//     for (k, v, pk) in proofs {
+//         if (key as i32) < pk {
+//             supporting += 1;
+//         } else if key <= k && value == v {
+//             supporting += 1;
+//         }
+//     }
+//     if supporting >= 1 + 1 {
+//         return true;
+//     }
+//     false
+// }
 
 // pub fn receive_request(
 //     deps: DepsMut,
@@ -448,22 +448,22 @@ fn _accept_key(key: u32, value: String, proofs: Vec<(u32, String, i32)>) -> bool
 //         .add_attribute("chain_id", chain_id.to_string()))
 // }
 
-fn _open_lock(deps: &DepsMut, proofs: Vec<(u32, InputType, i32)>) -> StdResult<bool> {
-    let mut supporting: u32 = 0;
-    let state = STATE.load(deps.storage)?;
-    for (k, v, pk) in proofs {
-        if (state.lock as i32) <= pk {
-            supporting += 1;
-        } else if state.lock <= k && v != state.lock_val {
-            supporting += 1;
-        }
-    }
-    if supporting >= (state.F + 1) {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
+// fn _open_lock(deps: &DepsMut, proofs: Vec<(u32, InputType, i32)>) -> StdResult<bool> {
+//     let mut supporting: u32 = 0;
+//     let state = STATE.load(deps.storage)?;
+//     for (k, v, pk) in proofs {
+//         if (state.lock as i32) <= pk {
+//             supporting += 1;
+//         } else if state.lock <= k && v != state.lock_val {
+//             supporting += 1;
+//         }
+//     }
+//     if supporting >= (state.F + 1) {
+//         Ok(true)
+//     } else {
+//         Ok(false)
+//     }
+// }
 
 
 /* 
