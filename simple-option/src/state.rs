@@ -139,7 +139,11 @@ impl State {
         self.done_executed = false;
         self.done_timestamp = None;
         self.done_block_height = None;
-        self.F = (self.n-1)/2;
+        if (self.n == 3) {
+            self.F = 1;
+        } else {
+            self.F = (self.n-1)/2;
+        }
         ()
 
     }

@@ -38,8 +38,8 @@ param1=$3
 param2=$4
 param3=$5
 
-pubkey="[3, 117, 218, 217, 204, 108,  10,167, 180, 109,  53, 118, 212, 125,89, 153, 137, 107, 192, 224, 137,206,  74, 205, 192, 206, 125,  73,150, 179, 250,  70, 243]"
-signature="[244,  60,  19,  30,  60,  31, 121, 112, 100, 181, 197,35, 155, 235,  50, 237, 232, 189, 120, 114,  47,   4,65, 179, 122,  11,  38,  66,  53, 109, 212, 121,  51,41, 183,  65, 250,  44,   2,  78, 154,  82,  12,  82,168, 157, 234, 208, 241, 238, 185, 244,  17,  39,  12,197, 249,  30, 127,  45, 249, 170,  49, 138]"
+PUBKEY="[3, 117, 218, 217, 204, 108,  10,167, 180, 109,  53, 118, 212, 125,89, 153, 137, 107, 192, 224, 137,206,  74, 205, 192, 206, 125,  73,150, 179, 250,  70, 243]"
+SIGNATURE="[244,  60,  19,  30,  60,  31, 121, 112, 100, 181, 197,35, 155, 235,  50, 237, 232, 189, 120, 114,  47,   4,65, 179, 122,  11,  38,  66,  53, 109, 212, 121,  51,41, 183,  65, 250,  44,   2,  78, 154,  82,  12,  82,168, 157, 234, 208, 241, 238, 185, 244,  17,  39,  12,197, 249,  30, 127,  45, 249, 170,  49, 138]"
 
 # -------- TARGET_PARAMS ------- #
 keyring="--keyring-backend test --keyring-dir ./data/ibc-$target"
@@ -465,7 +465,7 @@ debugLock()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"lock\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -476,7 +476,7 @@ debugDone()
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"done\" : { \"val\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -796,32 +796,80 @@ triggerDone2()
 }
 
 
-resetMany() 
+queryStateMany() 
 {
+    
     end_index=$(expr $target - 1)
     for k in $(seq 0 $end_index)
     do
+        echo "querying state for node $k..."
+        privateQueryState $k
+        sleep 3
+    done
+}
+
+resolveRecordMany() 
+{
+    
+    end_index=$(expr $target - 1)
+    for k in $(seq 0 $end_index)
+    do
+        echo "querying record for node $k..."
+        privateResolveRecord $k
+        sleep 3
+    done
+}
+
+
+resetMany() 
+{
+    
+    end_index=$(expr $target - 1)
+    for k in $(seq 0 $end_index)
+    do
+        echo "reseting TB for node $k..."
         privateResetTBOne $k
+        sleep 10
+        echo "reseting NS for node $k..."
         privateResetNSOne $k
+        sleep 10
+    done
+}
+
+inputMany() 
+{
+    set -e
+    end_index=$(expr $target - 1)
+    for k in $(seq 0 $end_index)
+    do
+        if [ $k -eq 0 ]; then
+            # start 0 last...
+            continue 
+        fi
+        echo "starting input for node $k......"
+        privateResetTBOne $k
+        sleep 10
     done
 
-    privateResetTBOne 1
+    echo "starting input for node 0"
+    privateResetTBOne 0
 
 }
+
 
 privateResetTBOne() 
 {
     keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
     chain="ibc-$1"
     node=http://127.0.0.1:2655$1
-    init='{"count": 1}'
     user="USER"
+    param1=eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
 
-    set -x
+    set -e
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    EXEC_MSG="{ \"pre_input\" : { \"value\" :{ \"binary\" : \"PRE_INPUT\",\"public_key\" : [], \"signature\" : []}}}"
-    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
 
 }
 
@@ -830,12 +878,57 @@ privateResetNSOne()
     keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
     chain="ibc-$1"
     node=http://127.0.0.1:2655$1
-    init='{"count": 1}'
     user="USER"
 
-    set -x
-    EXEC_MSG='{ "trigger": { "behavior": "done_2"} }'
-    wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
+    set -e
+    EXEC_MSG='{ "delete_all_records": { "name": "test_from_trustboost_sept"} }'
+    wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
+}
+
+privateInput() 
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    user="USER"
+    param1=eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
+
+    set -e
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    #  {"binary": "f","public_key": "f", "signature": []}
+    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
+}
+
+privateQueryState()
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    user="USER"
+    param1=eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ==
+
+    set -e
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    QUERY_MSG="{\"get_state\": {}}" 
+    wasmd query wasm contract-state smart $contract_address "$QUERY_MSG" --chain-id $chain --node $node    
+}
+
+privateResolveRecord()
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    user="USER"
+    param1="test_from_trustboost_sept"
+
+    set -e
+    code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
+    contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
+    QUERY_MSG="{\"resolve_record\": {\"name\": \"$param1\"}}"
+    wasmd query wasm contract-state smart $NS_CONTRACT_ADDRESS "$QUERY_MSG" --chain-id $chain --node $node    
 }
 
 
@@ -960,6 +1053,14 @@ elif [ $1 = "getAddress" ]; then
     getAddress
 elif [ $1 = "checkSignature" ]; then
     checkSignature
+elif [ $1 = "resetMany" ]; then
+    resetMany
+elif [ $1 = "inputMany" ]; then
+    inputMany
+elif [ $1 = "queryStateMany" ]; then
+    queryStateMany
+elif [ $1 = "resolveRecordMany" ]; then
+    resolveRecordMany
 else
     echo "unknown method in helper script see"
 fi

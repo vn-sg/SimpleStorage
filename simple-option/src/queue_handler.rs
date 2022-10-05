@@ -702,7 +702,7 @@ fn message_transfer_hop(
                 return Ok(false);
             } else {
                 // upon receiving from n - f parties with the same val
-                if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - F).try_into().unwrap() {
+                if !state.sent.contains(msg_to_send.name()) && set.len() >= (state.n - state.F).try_into().unwrap() {
                     let mut state = STATE.load(storage)?;
                     state.sent.insert(msg_to_send.name().to_string());
                     STATE.save(storage, &state)?;
