@@ -142,7 +142,7 @@ impl State {
         if (self.n == 3) {
             self.F = 1;
         } else {
-            self.F = (self.n-1)/2;
+            self.F = (self.n-1)/3;
         }
         ()
 
