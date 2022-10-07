@@ -426,7 +426,7 @@ input()
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
     #  {"binary": "f","public_key": "f", "signature": []}
     EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}}}"
-    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE }}}"
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring
 }
 
@@ -804,7 +804,7 @@ queryStateMany()
     do
         echo "querying state for node $k..."
         privateQueryState $k
-        sleep 3
+        sleep 1
     done
 }
 
@@ -816,7 +816,7 @@ resolveRecordMany()
     do
         echo "querying record for node $k..."
         privateResolveRecord $k
-        sleep 3
+        sleep 1
     done
 }
 
@@ -829,10 +829,10 @@ resetMany()
     do
         echo "reseting TB for node $k..."
         privateResetTBOne $k
-        sleep 10
+        sleep 30
         echo "reseting NS for node $k..."
         privateResetNSOne $k
-        sleep 10
+        sleep 30
     done
 }
 
@@ -847,12 +847,12 @@ inputMany()
             continue 
         fi
         echo "starting input for node $k......"
-        privateResetTBOne $k
-        sleep 10
+        privateInput $k
+        sleep 15
     done
 
     echo "starting input for node 0"
-    privateResetTBOne 0
+    privateInput 0
 
 }
 
@@ -868,9 +868,11 @@ privateResetTBOne()
     set -e
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    #EXEC_MSG="{ \"pre_input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    EXEC_MSG="{ \"pre_input\" : { \"value\" :{ \"binary\" : \"RESET_TB\",\"public_key\" : [], \"signature\" : []}}}"
+    set -x
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
-
+    set +x
 }
 
 privateResetNSOne() 
@@ -882,7 +884,9 @@ privateResetNSOne()
 
     set -e
     EXEC_MSG='{ "delete_all_records": { "name": "test_from_trustboost_sept"} }'
+    set -x
     wasmd tx wasm execute $NS_CONTRACT_ADDRESS "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
+    set +x
 }
 
 privateInput() 
@@ -896,9 +900,12 @@ privateInput()
     set -e
     code_id=$(wasmd query wasm list-code --node $node --output json | jq -r ".code_infos[-1] | .code_id")
     contract_address=$(wasmd query wasm list-contract-by-code $code_id --node $node --output json | jq -r '.contracts[-1]')
-    #  {"binary": "f","public_key": "f", "signature": []}
-    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $pubkey, \"signature\" : $signature}, \"view\": 0, \"local_channel_id\": \"$param2\"}}"
+    #EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : [], \"signature\" : []}}}"
+    EXEC_MSG="{ \"input\" : { \"value\" :{ \"binary\" : \"$param1\",\"public_key\" : $PUBKEY, \"signature\" : $SIGNATURE }}}"
+
+    set -x
     wasmd tx wasm execute $contract_address "$EXEC_MSG" --amount 100stake $GAS_FLAG --node $node --chain-id $chain --from $USER $keyring -y
+    set +x
 }
 
 privateQueryState()

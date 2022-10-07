@@ -101,9 +101,15 @@ echo "Key $(rly keys restore ibc-3 testkey "$SEED3") imported from ibc-3 to rela
 echo "Key $(rly keys restore ibc-4 testkey "$SEED4") imported from ibc-4 to relayer..."
 echo "Key $(rly keys restore ibc-5 testkey "$SEED5") imported from ibc-5 to relayer..."
 echo "Key $(rly keys restore ibc-6 testkey "$SEED6") imported from ibc-6 to relayer..."
-echo "Key $(rly keys restore ibc-4 testkey "$SEED7") imported from ibc-4 to relayer..."
-echo "Key $(rly keys restore ibc-5 testkey "$SEED8") imported from ibc-5 to relayer..."
-echo "Key $(rly keys restore ibc-6 testkey "$SEED9") imported from ibc-6 to relayer..."
+
+wasmd keys delete ibc-7 -y &> /dev/null || true
+wasmd keys delete ibc-8 -y &> /dev/null || true
+wasmd keys delete ibc-9 -y &> /dev/null || true
+
+
+echo "Key $(rly keys restore ibc-7 testkey "$SEED7") imported from ibc-7 to relayer..."
+echo "Key $(rly keys restore ibc-8 testkey "$SEED8") imported from ibc-8 to relayer..."
+echo "Key $(rly keys restore ibc-9 testkey "$SEED9") imported from ibc-9 to relayer..."
 
 rly config add-paths configs/wasmd/10chains/paths
 
