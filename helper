@@ -949,8 +949,6 @@ queryRelayerBalanceMany()
             privateQueryRelayerBalance $k
         sleep 1
     done
-
-
 }
 
 privateQueryRelayerBalance() 
@@ -963,7 +961,7 @@ privateQueryRelayerBalance()
     set -x 
     address=$(wasmd keys list $keyring --output json | jq ".[] | select(.name==\"$user\")" | jq -r .address)
     echo "HELLO ADDRESS $address"
-    wasmd query bank balances $address --node $node --chain-id ibc-$target
+    wasmd query bank balances $address --node $node --chain-id ibc-$target --output json
 }
 
 
