@@ -50,7 +50,7 @@ node=http://127.0.0.1:2655$2
 
 listKeys()
 {
-    cmd="wasmd keys list $(echo $keyring)"
+    cmd="wasmd keys list $(echo $keyring) --output json"
     set -x 
     $cmd
 }
@@ -939,6 +939,35 @@ privateResolveRecord()
 }
 
 
+queryRelayerBalanceMany()
+{
+    set -e
+    end_index=$(expr $target - 1)
+    for k in $(seq 0 $end_index)
+    do
+        echo "getting relayer balance at node $k......"
+            privateQueryRelayerBalance $k
+        sleep 15
+    done
+
+
+}
+
+privateQueryRelayerBalance() 
+{
+    keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
+    chain="ibc-$1"
+    node=http://127.0.0.1:2655$1
+    user="user"
+    param1="user"
+
+    set -x 
+    address=$(wasmd keys list $keyring --output json | jq ".[] | select(.name==\"$user\")" | jq -r .address)
+    echo "HELLO ADDRESS $address"
+    wasmd query bank balances $address --node $node --chain-id ibc-$target
+}
+
+
 if [ -z $1 ]; then
     echo "Need Param 1 what to do"
     exit 1
@@ -1068,6 +1097,8 @@ elif [ $1 = "queryStateMany" ]; then
     queryStateMany
 elif [ $1 = "resolveRecordMany" ]; then
     resolveRecordMany
+elif [ $1 = "queryRelayerBalance" ]; then
+    queryRelayerBalanceMany
 else
     echo "unknown method in helper script see"
 fi
