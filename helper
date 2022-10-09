@@ -947,7 +947,7 @@ queryRelayerBalanceMany()
     do
         echo "getting relayer balance at node $k......"
             privateQueryRelayerBalance $k
-        sleep 15
+        sleep 1
     done
 
 
@@ -958,8 +958,7 @@ privateQueryRelayerBalance()
     keyring="--keyring-backend test --keyring-dir ./data/ibc-$1"
     chain="ibc-$1"
     node=http://127.0.0.1:2655$1
-    user="user"
-    param1="user"
+    user="testkey"
 
     set -x 
     address=$(wasmd keys list $keyring --output json | jq ".[] | select(.name==\"$user\")" | jq -r .address)
