@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use cosmwasm_std::{
-    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary, Addr, Binary, Deps, Api
+    StdResult, Order, IbcTimeout, Env, IbcOrder, StdError, IbcChannelOpenMsg, Storage, IbcMsg, to_binary, Addr, Binary, Deps, Api, Timestamp
 };
 
 use crate::ibc_msg::{
@@ -249,4 +249,11 @@ pub fn check_signature(api: &dyn Api, val: InputType) -> bool {
 
     verify_result.unwrap()
 }
+
+
+pub fn get_seconds_diff(start: &Timestamp, end: &Timestamp) -> u64 {
+    return end.seconds()-start.seconds();
+} 
+
+
 

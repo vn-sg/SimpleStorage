@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Storage, Addr,
+    StdError, StdResult, SubMsg, wasm_execute, WasmMsg, Storage, Addr, Timestamp,
 };
 
 use std::convert::TryInto;
@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use crate::error::ContractError;
 use crate::ibc_msg::{Msg, PacketMsg};
 use crate::queue_handler::{receive_queue, send_all_party};
-use crate::utils::{get_timeout, init_receive_map, get_id_channel_pair_from_storage, convert_send_ibc_msg, derive_addr_from_pubkey};
+use crate::utils::{get_timeout, init_receive_map, get_id_channel_pair_from_storage, convert_send_ibc_msg, derive_addr_from_pubkey, get_seconds_diff};
 use crate::view_change::{view_change, convert_queue_to_ibc_msgs, testing_add2queue};
 // use crate::ibc_msg::PacketMsg;
 use crate::msg::{
@@ -375,12 +375,35 @@ fn query_done(deps: Deps) -> StdResult<DoneQueryResponse> {
 
 fn query_state(deps: Deps) -> StdResult<StateResponse> {
     let state = STATE.load(deps.storage)?;
-    Ok(match state.done {
-        Some(val) => StateResponse::Done { 
-            decided_val: val.binary,
-            decided_timestamp: state.done_timestamp,
-            block_height: state.done_block_height,
-            start_time: state.start_time,
+    Ok(
+        match state.done {           
+            Some(val) => {
+                let duration = match state.done_timestamp {
+                    Some(val) => { 
+                        Some(get_seconds_diff(&state.start_time, &state.done_timestamp.unwrap()))
+                    },
+                    None => {
+                        None
+                    }
+                };   
+                
+                let minutes_duration = match duration {
+                    Some(val) => { 
+                        Some(val/60)
+                    },
+                    None => {
+                        None
+                    }
+                };
+
+                StateResponse::Done { 
+                decided_val: val.binary,
+                decided_timestamp: state.done_timestamp,
+                block_height: state.done_block_height,
+                start_time: state.start_time,
+                seconds_duration: duration,
+                minutes_duration: minutes_duration,
+            }
         },
         None => StateResponse::InProgress { state },
     })

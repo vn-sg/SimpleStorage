@@ -80,6 +80,8 @@ pub enum StateResponse {
         decided_timestamp: Option<Timestamp>,
         block_height: Option<u64>,
         start_time: Timestamp,
+        seconds_duration: Option<u64>,
+        minutes_duration: Option<u64>,
     }
 }
 

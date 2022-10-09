@@ -77,4 +77,4 @@ done
 
 
 echo "All relayers have been started... Check ./relayer_logs for logs.. Please wait for a few second before starting to send messages"
-
+echo $(date)
