@@ -1,6 +1,7 @@
 # SimpleStorage
 
-Demo for 
+Proof of concept demo for trustboost
+
 ## Installation
 
 - Use the package manager [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) to install dependencies and crates required to run Rust code and unit tests
