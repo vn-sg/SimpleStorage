@@ -27,6 +27,24 @@ To start the system use the ./start script, and specify the number of chains(nod
 ./start 7
 ```
 
+<h2> Getting balances of Relayer before starting </h2>
+
+To get the balances of the relayers use this command <code>./helper queryRelayerBalanceMany $(nodeCount) </code> 
+
+use this for getting the relayer wallet in one chain <code> ./helper queryRelayerBalance $(chainIndex) </code>
+
+Note that the relayer wallet in a chain will be used by many relayers IE: in a 3 chain setup we have 3 relayers connecting chains chain0-chain1, chain1-chain2 and chain0-chain2. The relayer wallet at chain-0 will be used by relayers that will be forwarding 0-1 and 0-2 and will be used to pay transactions to persist IBC messages from chain-1 and chain-2 to chain-0.
+
+```bash
+# will list out the balances of the relayer wallet from chain-0,1,2,3
+./helper queryRelayerBalanceMany 4
+
+# will list out the balances of the relayer wallet from chain-3
+./helper queryRelayerBalance 3
+```
+
+
+
 <h2> Start Request </h2>
 
 
