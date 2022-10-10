@@ -1,53 +1,99 @@
 # SimpleStorage
 
-This is a demo of the fundamental infrastructure of the smart contract of SimpleStorage, which mainly relies on IBC-packets and relayer to relay messages across blockchains.
-
+Demo for 
 ## Installation
 
-Use the package manager [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) to install dependencies and crates required to run Rust code and unit tests
-
-```bash
-curl https://sh.rustup.rs -sSf | sh
-```
+- Use the package manager [Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html) to install dependencies and crates required to run Rust code and unit tests
+- Install wasmd (use version 0.28.0 https://github.com/CosmWasm/wasmd/tree/v0.28.0)
+- install relayer follow this branch for the one with shorter relay delay (https://github.com/sdgs72/relayer)
+    - just clone the repo and run <code> make install </code>
 
 ## Usage
 
-First, we need to have 3 wasmd blockchains up and running in order to test the basic functionality of the smart contract. To do this, simply do:
-```bash
-./start3chains
-```
-This will automatically ensure you have wasmd correctly installed and set up 3 testing blockchains running in the background. This script will also initialize IBC relayer and generate appropriate configurations. Keys and relayer paths will also be updated accordingly.
-<br><br>
-To upload this smart contract to each blockchain, 
-```bash
-./run upload
-```
-The above command will compile and optimize the smart contract into minimal file size. Then it is uploaded onto each blockchain and instantiated.
-<br><br>
-Afterwards, use
-```bash
-./run link
-```
-to link the ibc-ports of blockchains to enable interblockchain communication.
-<br><br>
-### **Start the Relayer**
-- Upon completing the above setup steps, you would then be able to start the relayer and relay packets across testing blockchains by the command:
-```bash
- rly start mypath0-1 --debug-addr localhost:7597
- rly start mypath0-2 --debug-addr localhost:7598
-```
-be sure to supplement different ports to avoid conflict.
+<h2> Start Chains and Relayer </h2>
 
-Now, execute the contract using following command or type your own execution
+Note that chain/node indexes start at 0 and ends at n-1 (in the 7 chains case, the last chain will be ibc-6)
+
+To start the system use the ./start script, and specify the number of chains(nodes), that you want to run. This will automatically setup all the relayers, deploy all the smartcontracts(Nameservice and trustboost) and also run the relayers. Right now only size 3,4,7 and 10 are supported
 ```bash
-# execute
-./run e
+# start 3 chains
+./start 3
 
-# query current state of blockchain0
-./run q 0 state
+# start 4 chains
+./start 4
 
-# query the tx with id 0 on blockchain0
-./run q 0 tx 0
+# start 7 chains
+./start 7
+```
+
+<h2> Start Request </h2>
+
+
+After starting the chains and the relayer, please wait for ~1-2 min, since after setup the relayer needs to forward some IBC setup messages between the trustboost contrast across diferent chains.
+
+Next to start the input use the following ./helper inputMany (nodecount) command. This will loop over to the number of node count specified and start sending the request. There is a 15 second delay between each call to a chain to prevent account sequencing errors in the CLI.
+
+The input will start, starting at 1 since this is usually the primary and we want the primary to start first otherwise some of the IBC message might get dropped and the process will be stuck if the primary started late.
+
+```bash
+# (3 chains 1 faulty, special case)
+./helper inputMany 2
+
+# (4 chains 1 faulty, so only input to 3 chains)
+./helper inputMany 3
+
+#  (7 chains 2 faulty, so only input to 5 chains)
+./helper inputMany 5
+```
+
+Wait for some time (~ 5 minute) for the state to converge use the next commands to check. (for 7/10 chains might take more time then ~5 minute)
+
+<h2> Getting Trustboost contract state </h2>
+
+use the the command to print the state of many nodes. ./helper queryStateMany (nodeNumber). (use <code>./helper queryState $targetNode</code> to only execute for one chain)
+```bash 
+# will list out the state of chain-0,chain-1,chain-2. It will show the done timestamp if it is finished. But please use the resolveRecordMany instead to get the final contract time stamp
+./helper queryStateMany 2
+
+#To show the state for all 4 chains
+./helper queryStateMany 4
+
+#To show the state for all 7 chains
+./helper queryStateMany 7
+
+```
+
+Example output for ONE chain(in queryStateMany it will show the result for many chains) after it is done (if it is not done, it will just show a big blob of progress), otherwise it will show a big blob of state
+
+```bash
+
+  Done:
+    block_height: 473  # height when the target is mined
+    decided_timestamp: "1665373301539366000" #when the target smart contract will be executed
+    decided_val: eyJyZWdpc3Rlcl90YiI6eyJuYW1lIjoidGVzdF9mcm9tX3RydXN0Ym9vc3Rfc2VwdCJ9fQ== # decided value
+    minutes_duration: 1 # DONT USE THIS CAN BE FAULTY DUE TO START TIME ERROR
+    seconds_duration: 97 # DONT USE THIS CAN BE FAULTY DUE TO START TIME ERROR
+    start_time: "1665373204826996000" # DONT USE THIS CAN BE FAULTY DUE TO START TIME ERROR
+
+```
+
+<h2> Getting State Name service state</h2>
+
+
+use the following command <code>./helper resolveRecord $(targetNode)</code> to get the end time, the owner should be filled and the timestamp should be there if it is null
+```bash
+./helper resolveRecordMany 5
+```
+
+<h2> Resetting smart contract state </h2>
+
+To reset use this command ./helper resetMany (nodeCount). This command will some time (60 seconds delay per chain). To prevent sequencing error. Please check the state using queryStateMany after the reset has finished and make sure that the value of the keys are "RESET_TB" and the signature fields are all empty, otherwise try resetting again. (Usually there are some messages in the relayer that are forwarded a bit late that cause the state to be dirty after being reset).
+```bash
+# if you start 4 chains use this to reset all of them
+./helper resetMany 4
+
+# if you start 7 chains use this to reset all of them
+./helper resetMany 7
 ```
 
 ## Contributing
