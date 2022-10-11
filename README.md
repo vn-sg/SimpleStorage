@@ -44,6 +44,16 @@ Note that the relayer wallet in a chain will be used by many relayers IE: in a 3
 ```
 
 
+<h2> Getting balances of User before starting </h2>
+
+To get the balances of the relayers use this command <code>./helper queryUserBalanceMany $(nodeCount) </code> 
+
+```bash
+# will list out the balances of the relayer wallet from chain-0,1,2,3
+./helper queryUserBalanceMany 3
+```
+
+
 
 <h2> Start Request </h2>
 
