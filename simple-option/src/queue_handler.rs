@@ -10,11 +10,11 @@ use std::hash::Hash;
 
 use crate::ContractError;
 use crate::state::{RECEIVED_DONE, InputType, TBInput};
-use crate::utils::{get_id_channel_pair_from_storage, get_chain_id, check_signature, append_binary_string, derive_addr_from_pubkey};
+use crate::utils::{get_id_channel_pair_from_storage, get_chain_id, check_signature, append_binary_string, derive_addr_from_pubkey, get_and_increment_debug_ctr, debug_log};
 use crate::ibc_msg::{Msg,AcknowledgementMsg, MsgQueueResponse, PacketMsg};
 use crate::{state::{
     HIGHEST_REQ, STATE, SEND_ALL_UPON, CHANNELS, TEST_QUEUE, TEST, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3,
-    DEBUG, RECEIVED_LOCK, DEBUG_RECEIVE_MSG
+    DEBUG, RECEIVED_LOCK, DEBUG_RECEIVE_MSG, DEBUG_CTR, IBC_MSG_SEND_DEBUG
 }, abort::handle_abort};
 
 // Handle Propose
@@ -323,7 +323,7 @@ fn handle_key2(
         state.key3_val = val.clone();
         STATE.save(store, &state)?;    
     }
-    
+
     Ok(())
 }
 
@@ -376,6 +376,7 @@ fn handle_lock(
         let mut vec_msgs:Vec<SubMsg> = Vec::new();
         let mut state = STATE.load(store).unwrap();
         if state.done.is_some() && !state.done_executed && check_signature(api, val.clone()){
+            DEBUG.save(store, 7777777, &"EXECUTED ME AFTER LOCK!!!!!".to_string())?;
             let address = derive_addr_from_pubkey(&val.public_key).unwrap();
             let appended_binary = append_binary_string(val.binary, &"tb_user".to_string(), &address.to_string());
             let stringified_binary = appended_binary.to_string();
@@ -385,6 +386,8 @@ fn handle_lock(
                 funds: vec![]
             };
             let sub_msg: SubMsg = SubMsg::reply_always(wasm_msg, 1234);    
+            state.done_timestamp = Some(env.block.time);
+            state.done_block_height = Some(env.block.height);
             state.done_executed = true;
             STATE.save(store, &state)?;
             vec_msgs.push(sub_msg);
@@ -432,6 +435,9 @@ fn handle_done(
             DEBUG.save(store, 777777777, &stringified_binary)?;
             let sub_msg = SubMsg::reply_always(wasm_msg, 1234);    
             vec_msgs.push(sub_msg)
+        } else if(!check_signature(api, val.clone())) {
+            DEBUG.save(store, 777777777, &"FALSE SIG NOT DONE".to_string())?;    
+            //return Err(ContractError::CustomError { val: "INVALID SIGNATURE".to_string() });
         }
         STATE.save(store, &state)?;
         return Ok(vec_msgs);
@@ -455,7 +461,20 @@ pub fn receive_queue(
     let mut wasm_exec_messages: Vec<SubMsg> = Vec::new();
 
     for msg in queue_to_process {
-        let msg_string = msg.name();
+        let msg_string = msg.name().to_string();
+
+        let chain_id_debug: String = match local_channel_id.clone() {
+            Some(id) => {
+                // Get the chain_id of the sender
+                format!("IBC-{}",get_chain_id(store, id))
+            },
+            None => "SELF".to_string(),
+        };
+
+
+        debug_log(store, &format!("RECV QUEUE... {} From... {}", msg_string, chain_id_debug));
+
+
         // TODO skip...
         // let key = msg.name().to_string();
         // if(RECEIVED.load(store,key)?.contains(local_channel_id.unwrap()?)) {
@@ -531,7 +550,15 @@ pub fn receive_queue(
         };
         
         // unwrap the result to handle any errors
-        result?
+        match result {
+            Ok(res) => (),
+            Err(err) => {
+                debug_log(store,  &format!("RESULT ERROR Rocessing {} From... {} Error {}", msg_string, chain_id_debug, err));        
+                let mut res = IbcReceiveResponse::new();
+                return Ok(res.set_ack(b"{}")
+                .add_attribute("action", "ibc_packet_ack"));
+            },
+        };
     }
 
 
@@ -733,6 +760,9 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<M
         let highest_request = HIGHEST_REQ.load(storage, chain_id.clone())?;
         if highest_request == state.view {
             //DEBUG.save(storage, 10000000+chain_id, &chain_id.to_string())?;
+
+            debug_log(storage, &format!("Send All Upon Join Packet INSTANT {} TO IBC-{} ", &packet_msg.name(), chain_id));
+
             queue[*chain_id as usize].push(packet_msg.clone());
         } else {
             // Otherwise, we need the msg to be recorded in queue so that it could be triggered when condition satisfies
@@ -746,6 +776,8 @@ pub fn send_all_upon_join_queue(storage: &mut dyn Storage, queue: &mut Vec<Vec<M
                 }
                 
             };
+            debug_log( storage, &format!("Send All Upon Join Packet SEND_UPON_JOIN {} TO IBC-{} ", &packet_msg.name(), chain_id));
+
             SEND_ALL_UPON.update(storage, *chain_id, action)?;
         }
     }
@@ -758,6 +790,9 @@ pub fn send_all_party(store: &mut dyn Storage, queue: &mut Vec<Vec<Msg>>, packet
     receive_queue(store, timeout, None, vec![packet.clone()], queue, env, api)?;
 
     for (chain_id, _channel_id) in &channel_ids {
+
+        debug_log(store,  &format!("Send All Party {} TO IBC-{} ", &packet.name(), chain_id));
+    
         queue[*chain_id as usize].push(packet.clone());
     }
     

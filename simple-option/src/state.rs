@@ -148,6 +148,38 @@ impl State {
 
     }
 
+    pub(crate) fn start_new_view(&mut self, new_view: u32, start_time: Timestamp) -> () {
+        self.sent = HashSet::new();
+
+        // Set suggestions and key2_proofs to empty set
+        self.suggestions = Vec::new();
+        self.key2_proofs = Vec::new();
+
+        // Use block time..
+        self.start_time = start_time;
+
+        //self view
+        self.view = new_view;
+
+        // Set the primary to be (view mod n) + 1
+        self.primary = new_view % self.n + 1;
+
+        ////    process_messages() part     ////
+        // initialize proofs to an empty set
+        self.proofs = Vec::new();
+
+        // reset values
+        self.received_propose = false;
+
+        if (self.n == 3) {
+            self.F = 1;
+        } else {
+            self.F = (self.n-1)/3;
+        }
+        ()
+
+    }
+
 
 }
 
@@ -176,7 +208,7 @@ pub const RECEIVED_DONE: Map<u64, HashSet<u32>> = Map::new("received_done");
 pub const TEST: Map<u32, Vec<IbcMsg>> = Map::new("test");
 pub const TEST_QUEUE: Map<u32, Vec<(u32, Vec<Msg>)> > = Map::new("test_queue");
 pub const DEBUG: Map<u32, String> = Map::new("debug");
-pub const IBC_MSG_SEND_DEBUG: Map<String, Vec<SubMsg>> = Map::new("ibc_msg_send_debug");
+pub const IBC_MSG_SEND_DEBUG: Map<u32, String> = Map::new("ibc_msg_send_debug");
 pub const DEBUG_CTR: Item<u32> = Item::new("DEBUG_CTR");
 pub const DEBUG_RECEIVE_MSG: Map<String, Vec<String>> = Map::new("DEBUG_RECEIVE_MSG");
 

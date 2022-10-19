@@ -14,13 +14,16 @@ use ripemd::{Digest as RipDigest, Ripemd160};
 
 use cw_storage_plus::{Map};
 use crate::state::{
-    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,RECEIVED_DONE, InputType
+    CHANNELS, SEND_ALL_UPON, STATE, HIGHEST_REQ, HIGHEST_ABORT, RECEIVED, RECEIVED_ECHO, 
+    RECEIVED_KEY1, RECEIVED_KEY2, RECEIVED_KEY3, RECEIVED_LOCK, TEST_QUEUE,RECEIVED_DONE, 
+    DEBUG, IBC_MSG_SEND_DEBUG, DEBUG_RECEIVE_MSG, InputType, DEBUG_CTR
 };
 
 /// Setting the lifetime of packets to be one hour
 pub const PACKET_LIFETIME: u64 = 60 * 60;
 /// Setting up constant
 pub const IBC_APP_VERSION: &str = "simple_storage";
+pub const DEBUG_ON: bool = true;
 
 
 use crate::ContractError;
@@ -255,5 +258,24 @@ pub fn get_seconds_diff(start: &Timestamp, end: &Timestamp) -> u64 {
     return end.seconds()-start.seconds();
 } 
 
+pub fn get_and_increment_debug_ctr(store: &mut dyn Storage) -> u32 {
+    if true {
+        return match DEBUG_CTR.load(store) {
+            Ok(val) => {
+                DEBUG_CTR.save(store, &(val+1));
+                return val+1;
+            }
+            Err(_) => 0,
+        };
+    }
+    return 0
+}
 
+
+pub fn debug_log(store: &mut dyn Storage, text: &String) {
+    if DEBUG_ON {
+        let ctr = get_and_increment_debug_ctr(store);
+        IBC_MSG_SEND_DEBUG.save(store, ctr, text);    
+    }
+}
 

@@ -39,7 +39,7 @@ pub const REQUEST_REPLY_ID: u64 = 100;
 pub const SUGGEST_REPLY_ID: u64 = 101;
 pub const PROOF_REPLY_ID: u64 = 102;
 pub const PROPOSE_REPLY_ID: u64 = 103;
-pub const VIEW_TIMEOUT_SECONDS: u64 = 10;
+pub const VIEW_TIMEOUT_SECONDS: u64 = 0;
 pub const ALLOW_DEBUG: bool = true;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -274,6 +274,8 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
     let end_time = state.start_time.plus_seconds(VIEW_TIMEOUT_SECONDS);
     match env.block.time.cmp(&end_time) {
         Ordering::Greater => {
+
+            // Execute abort via queue...
             let abort_packet = Msg::Abort {
                 view: state.view,
                 chain_id: state.chain_id,
@@ -290,10 +292,10 @@ pub fn handle_execute_abort(deps: DepsMut, env: Env) -> Result<Response, Contrac
                 &env,
                 deps.api
             )?;
-
+            
+            // get response from receive_queue and forward it to the call stack
             let sub_msgs = response.messages;
 
-            IBC_MSG_SEND_DEBUG.save(deps.storage, "ABORT".to_string(), &sub_msgs)?;
             Ok(Response::new()
                 .add_attribute("action", "execute")
                 .add_submessages(sub_msgs)
@@ -508,7 +510,7 @@ fn query_debug(deps: Deps) -> StdResult<Vec<(u32, String)>> {
     Ok(test?)
 }
 
-fn query_ibc_debug(deps: Deps) -> StdResult<Vec<(String, Vec<SubMsg>)>> {
+fn query_ibc_debug(deps: Deps) -> StdResult<Vec<(u32, String)>> {
     let test: StdResult<Vec<_>> = IBC_MSG_SEND_DEBUG
         .range(deps.storage, None, None, Order::Ascending)
         .collect();

@@ -55,14 +55,16 @@ pub fn handle_abort(storage: &mut dyn Storage,
 
         // Sort will sort the array ascendingly... [-1,0,-1,-1] --> [-1,-1,-1,0]..
         // F+1 highest meaning n-F+1
-        let u = vector_values[ (vector_values.len()-(state.F+1) as usize)]; 
+        let u = vector_values[ (vector_values.len()-(state.F+1) as usize)];  // [-1,0,0] f = 1 length = 3 (3-2) --> 1
         let mut loaded_val: i32 = 0;
         match HIGHEST_ABORT.load(storage, sender_chain_id) {
             Ok(val) => loaded_val = val,
             Err(_) => return Err(StdError::GenericErr { msg: "handle_abort cannot find loaded_val part 2".to_string()} ), 
         }
 
+        DEBUG.save(storage, 1203, &format!("u IS {} loaded_val IS {}", u, loaded_val).to_string())?;
         if u > loaded_val {
+            DEBUG.save(storage, 1201, &"CLONE_ABORT_PACKET OUTSIDE".to_string())?;
             if u > -1 {
                 let abort_packet = Msg::Abort { view: u as u32, chain_id: state.chain_id};
                 let channel_ids = get_id_channel_pair_from_storage(storage)?;
@@ -77,6 +79,8 @@ pub fn handle_abort(storage: &mut dyn Storage,
                     }
                 })?;
             }
+        } else {
+            DEBUG.save(storage, 1202, &format!("u IS {} loaded_val IS {}", u, loaded_val).to_string())?;
         }
 
         let highest_abort_vector_pair: StdResult<Vec<_>> = HIGHEST_ABORT
@@ -95,11 +99,12 @@ pub fn handle_abort(storage: &mut dyn Storage,
         let idx = vector_values.len()-(state.n-state.F) as usize;
         // println!("state.n is {} F is {} vector_values size is {} idx is {}", state.n, F, vector_values.len(), idx);
         let w = vector_values[idx as usize];
+
+        // Start new view here!.... 
         if (w+1) as u32 >= state.view {
             let previous_view = state.view;
-            state.view = (w + 1) as u32;
-            state.primary = (state.view % state.n) + 1;
-            state.start_time = env.block.time;
+            state.start_new_view((w+1) as u32, env.block.time);
+        
             STATE.save(storage, &state)?;
             if previous_view != state.view {
                 DEBUG.save(storage, 1300, &"TRIGGER_VIEW_CHANGE_NEW".to_string())?;
@@ -112,7 +117,8 @@ pub fn handle_abort(storage: &mut dyn Storage,
                         return Err(StdError::GenericErr { msg: "Error when reseting view maps in handle_abort".to_string()} )
                     }
                 }         
-                
+
+                // Send request AND suggest to everyone here by appending the messages to the queue!.....
                 let result = append_queue_view_change(storage, queue, timeout, env, api);
                 match result {
                     Ok(_) => {

@@ -12,7 +12,7 @@ use crate::state::{
 };
 
 use crate::ContractError;
-use crate::utils::{convert_send_ibc_msg};
+use crate::utils::{convert_send_ibc_msg, get_and_increment_debug_ctr};
 
 pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout, env: &Env, api: &dyn Api) -> Result<Response, ContractError> {
 
@@ -28,7 +28,9 @@ pub fn view_change(storage: &mut dyn Storage, timeout: IbcTimeout, env: &Env, ap
         .add_attribute("action", "execute")
         .add_attribute("msg_type", "input");
 
-    IBC_MSG_SEND_DEBUG.save(storage, "view_change".to_string(),&response.messages)?;    
+        let debug_ctr = get_and_increment_debug_ctr(storage);
+        IBC_MSG_SEND_DEBUG.save(storage, debug_ctr, &format!("Start View Change!! "));
+
 
     Ok(response)
 }
